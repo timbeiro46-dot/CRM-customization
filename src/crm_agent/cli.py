@@ -6,6 +6,7 @@ import typer
 from pydantic import ValidationError
 
 from crm_agent.apply import apply_manifest
+from crm_agent.audit import build_audit
 from crm_agent.design import build_design
 from crm_agent.errors import CrmAgentError
 from crm_agent.hubspot import HubSpotConnector
@@ -13,13 +14,16 @@ from crm_agent.intake import build_business_context
 from crm_agent.io import read_json, read_yaml, write_json, write_yaml
 from crm_agent.models import (
     BusinessContext,
+    CrmAudit,
     CrmDesign,
+    CrmReconciliation,
     HubSpotManifest,
     ManifestApproval,
     PortalCapabilities,
 )
 from crm_agent.onboarding import legacy_app_setup_text
 from crm_agent.planner import build_manifest
+from crm_agent.reconcile import reconcile_design_with_audit
 from crm_agent.research import build_research_registry
 from crm_agent.settings import Settings
 from crm_agent.validation import validate_manifest
@@ -93,6 +97,48 @@ def intake(
 
 
 @app.command()
+def audit(
+    capabilities: Path = typer.Option(
+        Path("portal_capabilities.json"), help="Portal capabilities JSON."
+    ),
+    out: Path = typer.Option(Path("crm_audit.yaml"), help="Output YAML."),
+    hubs: str = typer.Option("auto", help="Comma-separated hubs or auto."),
+    depth: str = typer.Option("metadata-quality", help="metadata or metadata-quality."),
+    sample_limit: int = typer.Option(25, min=1, max=100, help="Bounded sample size."),
+    live: bool = typer.Option(True, "--live/--no-live", help="Use token for read-only enrichment."),
+):
+    """Audit existing HubSpot configuration and aggregate data-quality signals."""
+    try:
+        portal_capabilities = PortalCapabilities.model_validate(read_json(capabilities))
+        settings = Settings.from_env(require_token=False)
+        connector = None
+        if live and settings.hubspot_private_app_token:
+            connector = HubSpotConnector(settings)
+        elif live:
+            typer.secho(
+                "No HUBSPOT_PRIVATE_APP_TOKEN found; writing capabilities-only audit.",
+                fg=typer.colors.YELLOW,
+            )
+        try:
+            crm_audit = build_audit(
+                portal_capabilities,
+                connector=connector,
+                hubs=hubs,
+                depth=depth,
+                sample_limit=sample_limit,
+            )
+        finally:
+            if connector is not None:
+                connector.close()
+        write_yaml(out, crm_audit)
+        typer.echo(f"Wrote {out}")
+        if crm_audit.warnings:
+            typer.secho("Audit completed with warnings.", fg=typer.colors.YELLOW)
+    except (CrmAgentError, ValidationError, OSError, ValueError) as error:
+        _fail(error)
+
+
+@app.command()
 def design(
     context: Path = typer.Option(Path("business_context.yaml"), help="Business context YAML."),
     capabilities: Path = typer.Option(
@@ -112,10 +158,32 @@ def design(
 
 
 @app.command()
+def reconcile(
+    design_file: Path = typer.Option(Path("crm_design.yaml"), "--design", help="CRM design YAML."),
+    audit_file: Path = typer.Option(Path("crm_audit.yaml"), "--audit", help="CRM audit YAML."),
+    out: Path = typer.Option(Path("crm_reconciliation.yaml"), help="Output YAML."),
+):
+    """Reconcile a desired design with the audited existing portal configuration."""
+    try:
+        crm_design = CrmDesign.model_validate(read_yaml(design_file))
+        crm_audit = CrmAudit.model_validate(read_yaml(audit_file))
+        reconciliation = reconcile_design_with_audit(crm_design, crm_audit)
+        write_yaml(out, reconciliation)
+        typer.echo(f"Wrote {out}")
+        if reconciliation.warnings:
+            typer.secho("Reconciliation requires review.", fg=typer.colors.YELLOW)
+    except (CrmAgentError, ValidationError, OSError, ValueError) as error:
+        _fail(error)
+
+
+@app.command()
 def plan(
     design_file: Path = typer.Option(Path("crm_design.yaml"), "--design", help="CRM design YAML."),
     capabilities: Path = typer.Option(
         Path("portal_capabilities.json"), help="Portal capabilities JSON."
+    ),
+    reconciliation_file: Path | None = typer.Option(
+        None, "--reconciliation", help="Optional CRM reconciliation YAML."
     ),
     out: Path = typer.Option(Path("hubspot_manifest.yaml"), help="Output YAML."),
 ):
@@ -123,7 +191,12 @@ def plan(
     try:
         crm_design = CrmDesign.model_validate(read_yaml(design_file))
         portal_capabilities = PortalCapabilities.model_validate(read_json(capabilities))
-        manifest = build_manifest(crm_design, portal_capabilities)
+        reconciliation = (
+            CrmReconciliation.model_validate(read_yaml(reconciliation_file))
+            if reconciliation_file
+            else None
+        )
+        manifest = build_manifest(crm_design, portal_capabilities, reconciliation)
         write_yaml(out, manifest)
         typer.echo(f"Wrote {out}")
         if manifest.has_blockers:

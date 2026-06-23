@@ -49,6 +49,8 @@ def validate_manifest(
             errors.append(f"{operation.id}: rollback note is required")
         if operation.action == "ensure_property":
             _validate_property_operation(operation, manifest.project_slug, errors, warnings)
+        if operation.action == "extend_property_options":
+            _validate_property_options_operation(operation, errors)
         if operation.action == "ensure_pipeline" and operation.object_type != "deals":
             errors.append(f"{operation.id}: V1 only supports deal pipelines")
 
@@ -85,3 +87,19 @@ def _validate_property_operation(
         )
     if operation.payload.get("fieldType") == "calculation_equation":
         errors.append(f"{operation.id}: API-created calculation properties are gated out of V1.")
+
+
+def _validate_property_options_operation(operation, errors: list[str]) -> None:
+    options = operation.payload.get("options_to_add", [])
+    if not options:
+        errors.append(f"{operation.id}: extend_property_options requires options_to_add.")
+        return
+    seen: set[str] = set()
+    for option in options:
+        value = option.get("value")
+        if value in (None, ""):
+            errors.append(f"{operation.id}: enum option value is required.")
+            continue
+        if str(value) in seen:
+            errors.append(f"{operation.id}: duplicate enum option value {value}.")
+        seen.add(str(value))

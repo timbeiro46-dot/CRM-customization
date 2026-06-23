@@ -41,9 +41,27 @@ CRM/Sales core:
 - `crm.schemas.deals.read`
 - `crm.schemas.deals.write`
 
-Do not add custom object, workflow, marketing, service, report, dashboard, form,
-or user-management scopes for V1 unless the codebase explicitly adds support for
-those features later.
+These read/write scopes are enough for the V1 Sales-core apply workflow.
+
+## Optional Read Scopes For Deep Audit
+
+`crm-agent audit --hubs auto` is still read-only, but it can inspect more of the
+portal when the private app has additional read scopes. Add only the scopes for
+the hubs you actually want to audit:
+
+- Sales add-ons: `crm.objects.leads.read`, `crm.objects.line_items.read`,
+  `crm.objects.quotes.read`
+- Service: `crm.objects.tickets.read`
+- Marketing metadata: `crm.objects.marketing_events.read`
+- Commerce/revenue objects: `crm.objects.invoices.read`, `crm.objects.orders.read`,
+  `crm.objects.subscriptions.read`
+- Content metadata: `content.read`
+- Enterprise/customization discovery: `crm.schemas.custom.read`
+
+Do not add workflow, report, dashboard, form, permission, or write scopes for
+optional hubs unless the codebase explicitly adds supervised support for those
+features later. If a scope or hub is missing, audit records `not_available` with
+the exact API error instead of failing the whole run.
 
 ## Local `.env`
 
@@ -62,10 +80,13 @@ HUBSPOT_PRIVATE_APP_TOKEN=pat-na1-REPLACE_ME
 ```bash
 crm-agent setup-legacy-app
 crm-agent preflight --out portal_capabilities.json
+crm-agent audit --capabilities portal_capabilities.json --out crm_audit.yaml
 ```
 
-`preflight` is read-only. It validates that the token works and records the
-current portal capability snapshot before any design or write plan is created.
+`preflight` and `audit` are read-only. `preflight` validates that the token works
+and records the current portal capability snapshot. `audit` then records existing
+configuration, availability by hub, and aggregate data-quality signals before any
+design or write plan is created.
 
 ## Official References
 

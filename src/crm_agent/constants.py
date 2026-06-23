@@ -1,6 +1,25 @@
 from __future__ import annotations
 
 SUPPORTED_OBJECTS = {"companies", "contacts", "deals"}
+CORE_AUDIT_OBJECTS = ("companies", "contacts", "deals")
+AUDITABLE_OBJECTS = {
+    "companies",
+    "contacts",
+    "deals",
+    "owners",
+    "users",
+    "leads",
+    "products",
+    "line_items",
+    "quotes",
+    "tickets",
+    "feedback_submissions",
+    "marketing_events",
+    "invoices",
+    "orders",
+    "payments",
+    "subscriptions",
+}
 SUPPORTED_PROPERTY_TYPES = {"bool", "enumeration", "date", "datetime", "string", "number"}
 SUPPORTED_FIELD_TYPES = {
     "booleancheckbox",
@@ -17,9 +36,20 @@ SUPPORTED_FIELD_TYPES = {
     "textarea",
 }
 
-READ_ONLY_COMMANDS = {"preflight", "intake", "design", "plan", "validate", "verify"}
+READ_ONLY_COMMANDS = {
+    "preflight",
+    "intake",
+    "audit",
+    "design",
+    "reconcile",
+    "plan",
+    "validate",
+    "verify",
+}
 MUTATING_METHODS = {"POST", "PATCH", "PUT"}
 BLOCKED_METHODS = {"DELETE"}
+READ_ONLY_METHODS = {"GET"}
+READ_ONLY_POST_PATH_SUFFIXES = {"/search"}
 
 STANDARD_PROPERTY_ALLOWLIST = {
     "companies": {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from crm_agent.constants import (
     BLOCKED_METHODS,
@@ -200,10 +200,146 @@ class CrmDesign(BaseModel):
         return slugify(value)
 
 
+class AuditAvailability(BaseModel):
+    status: Literal["available", "partial", "not_available"] = "not_available"
+    evidence: str = ""
+    missing_scopes: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
+class AuditPropertyMetric(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str
+    label: str | None = None
+    type: str | None = None
+    field_type: str | None = Field(default=None, alias="fieldType")
+    group_name: str | None = Field(default=None, alias="groupName")
+    option_count: int = 0
+    options: list[dict[str, Any]] = Field(default_factory=list)
+    option_usage_counts: dict[str, int] = Field(default_factory=dict)
+    sample_fill_rate: float | None = None
+
+
+class AuditPipelineStage(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str | None = None
+    label: str
+    display_order: int | None = Field(default=None, alias="displayOrder")
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditPipelineMetric(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str | None = None
+    label: str
+    display_order: int | None = Field(default=None, alias="displayOrder")
+    stage_count: int = 0
+    stages: list[AuditPipelineStage] = Field(default_factory=list)
+
+
+class AuditObjectMetadata(BaseModel):
+    object_type: str
+    availability: AuditAvailability = Field(default_factory=AuditAvailability)
+    property_count: int = 0
+    group_count: int = 0
+    pipeline_count: int = 0
+    association_label_count: int = 0
+    record_count: int | None = None
+    sampled_count: int = 0
+    properties: list[AuditPropertyMetric] = Field(default_factory=list)
+    property_groups: list[dict[str, Any]] = Field(default_factory=list)
+    pipelines: list[AuditPipelineMetric] = Field(default_factory=list)
+    association_labels: list[dict[str, Any]] = Field(default_factory=list)
+    quality: dict[str, Any] = Field(default_factory=dict)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AuditHubResult(BaseModel):
+    hub: str
+    availability: AuditAvailability = Field(default_factory=AuditAvailability)
+    object_types: list[str] = Field(default_factory=list)
+    endpoints: list[str] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CrmAudit(BaseModel):
+    generated_at: str
+    api_version: str
+    depth: Literal["metadata", "metadata-quality"] = "metadata-quality"
+    hubs_requested: list[str] = Field(default_factory=list)
+    hubs_selected: list[str] = Field(default_factory=list)
+    capability_hash: str
+    live_enrichment: bool = False
+    sample_limit: int = 25
+    hubs: dict[str, AuditHubResult] = Field(default_factory=dict)
+    objects: dict[str, AuditObjectMetadata] = Field(default_factory=dict)
+    custom_object_schemas: list[dict[str, Any]] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def audit_hash(self) -> str:
+        return stable_hash(self.model_dump(mode="json", exclude_none=True))
+
+
+class ReconciliationDecision(BaseModel):
+    id: str
+    kind: Literal["property", "pipeline", "pipeline_stage", "association"]
+    object_type: str
+    desired_name: str | None = None
+    desired_label: str
+    decision: Literal[
+        "reuse_existing",
+        "create_new",
+        "extend_existing",
+        "blocked_conflict",
+        "needs_review",
+        "out_of_scope",
+    ]
+    confidence: float = 0
+    existing_id: str | None = None
+    existing_name: str | None = None
+    existing_label: str | None = None
+    compatibility: dict[str, Any] = Field(default_factory=dict)
+    reason: str = ""
+    additive_changes: list[dict[str, Any]] = Field(default_factory=list)
+    manual_resolution: str | None = None
+
+
+class CrmReconciliation(BaseModel):
+    generated_at: str
+    design_hash: str
+    audit_hash: str
+    capability_hash: str
+    decisions: list[ReconciliationDecision] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+    @property
+    def reconciliation_hash(self) -> str:
+        return stable_hash(self.model_dump(mode="json", exclude_none=True))
+
+    def decision_for(
+        self, *, kind: str, object_type: str, desired_name: str | None, desired_label: str
+    ) -> ReconciliationDecision | None:
+        for decision in self.decisions:
+            if decision.kind != kind or decision.object_type != object_type:
+                continue
+            if desired_name and decision.desired_name == desired_name:
+                return decision
+            if decision.desired_label.lower().strip() == desired_label.lower().strip():
+                return decision
+        return None
+
+
 class ManifestOperation(BaseModel):
     id: str
     action: Literal[
         "ensure_property",
+        "extend_property_options",
         "ensure_pipeline",
         "ensure_pipeline_stage",
         "ensure_association_label",
@@ -251,6 +387,7 @@ class HubSpotManifest(BaseModel):
     project_slug: str
     design_hash: str
     capability_hash: str
+    reconciliation_hash: str | None = None
     dry_run_required: bool = True
     operations: list[ManifestOperation]
     warnings: list[str] = Field(default_factory=list)

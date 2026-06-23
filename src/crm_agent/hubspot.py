@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from crm_agent.constants import READ_ONLY_METHODS, READ_ONLY_POST_PATH_SUFFIXES
 from crm_agent.errors import HubSpotApiError
 from crm_agent.io import redact, utc_now_iso
 from crm_agent.models import (
@@ -76,6 +77,29 @@ class HubSpotConnector:
             raise last_error
         raise HubSpotApiError(f"HubSpot API {method} {path} failed after retries")
 
+    def _read_only_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        allow_not_found: bool = False,
+    ) -> dict[str, Any]:
+        method = method.upper()
+        read_only_post = method == "POST" and any(
+            path.endswith(suffix) for suffix in READ_ONLY_POST_PATH_SUFFIXES
+        )
+        if method not in READ_ONLY_METHODS and not read_only_post:
+            raise HubSpotApiError(f"Audit read-only guard blocked {method} {path}")
+        return self._request(
+            method,
+            path,
+            json_body=json_body,
+            params=params,
+            allow_not_found=allow_not_found,
+        )
+
     def preflight(self) -> PortalCapabilities:
         warnings: list[str] = []
         account: dict[str, Any] = {}
@@ -112,9 +136,7 @@ class HubSpotConnector:
         writable = False
 
         try:
-            prop_response = self._request(
-                "GET", f"/crm/properties/{self.api_version}/{object_type}"
-            )
+            prop_response = self.get_properties(object_type)
             for item in prop_response.get("results", []):
                 if name := item.get("name"):
                     properties[name] = item
@@ -125,9 +147,7 @@ class HubSpotConnector:
 
         if object_type == "deals":
             try:
-                pipelines = self._request(
-                    "GET", f"/crm/pipelines/{self.api_version}/{object_type}"
-                ).get("results", [])
+                pipelines = self.get_pipelines(object_type)
             except HubSpotApiError as error:
                 errors.append(str(error))
 
@@ -141,21 +161,75 @@ class HubSpotConnector:
             errors=errors,
         )
 
+    def get_properties(self, object_type: str) -> dict[str, Any]:
+        return self._read_only_request(
+            "GET",
+            f"/crm/properties/{self.api_version}/{object_type}",
+        )
+
+    def get_property_groups(self, object_type: str) -> list[dict[str, Any]]:
+        return self._read_only_request(
+            "GET",
+            f"/crm/properties/{self.api_version}/{object_type}/groups",
+            allow_not_found=True,
+        ).get("results", [])
+
     def get_property(self, object_type: str, property_name: str) -> dict[str, Any]:
-        return self._request(
+        return self._read_only_request(
             "GET",
             f"/crm/properties/{self.api_version}/{object_type}/{property_name}",
             allow_not_found=True,
         )
 
     def get_pipelines(self, object_type: str = "deals") -> list[dict[str, Any]]:
-        return self._request("GET", f"/crm/pipelines/{self.api_version}/{object_type}").get(
-            "results", []
+        return self._read_only_request(
+            "GET",
+            f"/crm/pipelines/{self.api_version}/{object_type}",
+            allow_not_found=True,
+        ).get("results", [])
+
+    def get_association_labels(
+        self, from_object_type: str, to_object_type: str
+    ) -> list[dict[str, Any]]:
+        return self._read_only_request(
+            "GET",
+            (f"/crm/associations/{self.api_version}/{from_object_type}/{to_object_type}/labels"),
+            allow_not_found=True,
+        ).get("results", [])
+
+    def get_object_schemas(self) -> list[dict[str, Any]]:
+        return self._read_only_request(
+            "GET",
+            f"/crm-object-schemas/{self.api_version}/schemas",
+            allow_not_found=True,
+        ).get("results", [])
+
+    def search_object_sample(
+        self,
+        object_type: str,
+        *,
+        properties: list[str],
+        limit: int = 25,
+    ) -> dict[str, Any]:
+        payload = {
+            "limit": limit,
+            "properties": properties[:100],
+        }
+        return self._read_only_request(
+            "POST",
+            f"/crm/objects/{object_type}/search",
+            json_body=payload,
+            allow_not_found=True,
         )
+
+    def get_metadata_endpoint(self, path: str) -> dict[str, Any]:
+        return self._read_only_request("GET", path, allow_not_found=True)
 
     def apply_operation(self, operation: ManifestOperation) -> dict[str, Any]:
         if operation.action == "ensure_property":
             return self.ensure_property(operation)
+        if operation.action == "extend_property_options":
+            return self.extend_property_options(operation)
         if operation.action == "ensure_pipeline":
             return self.ensure_pipeline(operation)
         if operation.action == "ensure_pipeline_stage":
@@ -171,6 +245,36 @@ class HubSpotConnector:
             "POST",
             f"/crm/properties/{self.api_version}/{operation.object_type}",
             json_body=operation.payload,
+        )
+        return {"status": "applied", "result": result}
+
+    def extend_property_options(self, operation: ManifestOperation) -> dict[str, Any]:
+        name = operation.payload["name"]
+        options_to_add = operation.payload.get("options_to_add", [])
+        existing = self.get_property(operation.object_type, name)
+        if not existing:
+            raise HubSpotApiError(f"Property not found for option extension: {name}")
+        existing_values = {
+            str(item.get("value"))
+            for item in existing.get("options", [])
+            if item.get("value") is not None
+        }
+        new_options = [
+            item
+            for item in options_to_add
+            if item.get("value") is not None and str(item.get("value")) not in existing_values
+        ]
+        if not new_options:
+            return {
+                "status": "noop",
+                "reason": "all enum options already exist",
+                "result": existing,
+            }
+        updated_options = [*existing.get("options", []), *new_options]
+        result = self._request(
+            "PATCH",
+            f"/crm/properties/{self.api_version}/{operation.object_type}/{name}",
+            json_body={"options": updated_options},
         )
         return {"status": "applied", "result": result}
 

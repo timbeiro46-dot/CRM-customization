@@ -29,6 +29,23 @@ def _verify_operation(operation: ManifestOperation, connector: HubSpotConnector)
         if prop:
             return "verified", f"Property `{operation.payload['name']}` exists."
         return "missing", f"Property `{operation.payload['name']}` was not found."
+    if operation.action == "extend_property_options":
+        prop = connector.get_property(operation.object_type, operation.payload["name"])
+        if not prop:
+            return "missing", f"Property `{operation.payload['name']}` was not found."
+        existing_values = {
+            str(item.get("value"))
+            for item in prop.get("options", [])
+            if item.get("value") is not None and not item.get("hidden")
+        }
+        missing = [
+            item.get("value")
+            for item in operation.payload.get("options_to_add", [])
+            if str(item.get("value")) not in existing_values
+        ]
+        if missing:
+            return "missing", f"Enum options still missing: `{', '.join(map(str, missing))}`."
+        return "verified", f"Enum options exist on `{operation.payload['name']}`."
     if operation.action in {"ensure_pipeline", "ensure_pipeline_stage"}:
         label = operation.expected.get("pipeline_label") or operation.payload.get("label")
         for pipeline in connector.get_pipelines(operation.object_type):
