@@ -1,0 +1,81 @@
+version: 1
+generated_from_plan_date: "2026-06-23"
+sources:
+  - id: hubspot_api_overview
+    name: HubSpot API reference/versioning
+    url: https://developers.hubspot.com/docs/api-reference/latest/overview
+    use_for:
+      - Date-based API version selection
+      - Endpoint discovery
+  - id: hubspot_apis_by_tier
+    name: HubSpot APIs by tier
+    url: https://developers.hubspot.com/docs/developer-tooling/platform/apis-by-tier.md
+    use_for:
+      - Portal capability gating
+      - Product tier assumptions
+  - id: hubspot_usage_guidelines
+    name: HubSpot API usage guidelines
+    url: https://developers.hubspot.com/docs/developer-tooling/platform/usage-guidelines.md
+    use_for:
+      - Rate limit handling
+      - Retry strategy
+  - id: hubspot_oauth
+    name: HubSpot OAuth
+    url: https://developers.hubspot.com/docs/apps/developer-platform/build-apps/authentication/oauth/working-with-oauth.md
+    use_for:
+      - Future public distribution path
+      - Scope design
+  - id: hubspot_legacy_private_apps
+    name: HubSpot legacy private apps
+    url: https://developers.hubspot.com/docs/apps/legacy-apps/private-apps/overview.md
+    use_for:
+      - MVP authentication setup
+      - User onboarding before preflight
+      - Private app token handling
+  - id: hubspot_scopes
+    name: HubSpot app scopes
+    url: https://developers.hubspot.com/docs/apps/developer-platform/build-apps/authentication/scopes.md
+    use_for:
+      - V1 CRM/Sales scope checklist
+      - Scope and tier troubleshooting
+  - id: hubspot_mcp
+    name: HubSpot MCP server
+    url: https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server.md
+    use_for:
+      - Future conversational CRM discovery
+      - Tool-surface comparison
+  - id: hubspot_properties
+    name: HubSpot CRM properties
+    url: https://developers.hubspot.com/docs/api-reference/latest/crm/properties/guide.md
+    use_for:
+      - Property type and fieldType validation
+      - Unique property constraints
+  - id: hubspot_schemas
+    name: HubSpot schemas/custom objects
+    url: https://developers.hubspot.com/docs/api-reference/latest/crm/objects/schemas/guide.md
+    use_for:
+      - Future custom object gate
+      - Enterprise-only schema awareness
+  - id: hubspot_associations
+    name: HubSpot associations
+    url: https://developers.hubspot.com/docs/api-reference/latest/crm/associations/associate-records/guide.md
+    use_for:
+      - Association direction and label validation
+      - Association rate limits
+  - id: hubspot_pipelines
+    name: HubSpot pipelines
+    url: https://developers.hubspot.com/docs/api-reference/latest/crm/pipelines/guide.md
+    use_for:
+      - Deal pipeline/stage creation
+      - Stage metadata validation
+  - id: superpowers
+    name: obra/superpowers
+    url: https://github.com/obra/superpowers
+    use_for:
+      - Phase-based agent workflow patterns
+      - Skills/plans/review gates
+principles:
+  - Capability discovery must happen before recommendations that depend on HubSpot tier or scopes.
+  - Direct HubSpot APIs are the source of truth for exact records, properties, and configuration.
+  - MCP can support future conversational discovery, but V1 writes use explicit API-backed manifest operations.
+  - All write operations must be idempotent, logged, and verified by readback.
