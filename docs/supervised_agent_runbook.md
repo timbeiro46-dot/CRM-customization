@@ -82,6 +82,9 @@ Use adaptive discovery:
 
 - Ask one business question at a time unless the user asks for a checklist.
 - Prefer business language over API language.
+- Ask early for existing context sources such as website, spreadsheet, CSV,
+  notes, or XLSX process files; use `--website-url` and `--source-file` when
+  persisting discovery.
 - Capture roles, sales process, pipeline stages, critical data, weekly reporting,
   desired hubs, constraints, and existing configuration to preserve.
 - Confirm the pipeline stages before design; `crm-agent design` uses the

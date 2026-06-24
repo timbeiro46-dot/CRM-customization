@@ -16,7 +16,7 @@ next action.
 2. Read: inspect portal permissions, objects, limits, plan-dependent access, and
    existing CRM/Sales configuration.
 3. Discover: understand the business, users, process, data, reporting, desired
-   hubs, constraints, and existing assets to preserve.
+   hubs, constraints, supplied context sources, and existing assets to preserve.
 4. Design: generate a CRM proposal from the approved diagnosis.
 5. Review: translate the technical plan into `crm_change_plan.md`.
 6. Simulate: run dry-run and review `dry_run_report.md`.
@@ -38,10 +38,19 @@ Technical artifacts such as `business_context.yaml`, `portal_capabilities.json`,
 `hubspot_manifest.yaml` are support evidence for the agent and technical
 operator.
 
+Discovery can also accept context sources:
+
+- Website or public source URL with `--website-url`.
+- Sales-process notes in `.txt`, `.md`, or `.markdown`.
+- Current process exports in `.csv` or `.tsv`.
+- Current process workbooks in `.xlsx`.
+
 ## Discovery Behavior
 
 Ask one question at a time. Good questions are strategic and business-shaped:
 
+- Do you already have a website, spreadsheet, CSV, document, or process file that
+  explains how sales works today?
 - What result should this CRM improve first?
 - How does an opportunity enter, move, and close today?
 - What decision should sales be able to make with reliable data?

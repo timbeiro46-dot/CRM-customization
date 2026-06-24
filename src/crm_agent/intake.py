@@ -4,6 +4,7 @@ from pathlib import Path
 
 from crm_agent.io import slugify
 from crm_agent.models import BusinessContext
+from crm_agent.source_context import build_source_context
 
 
 def build_business_context(
@@ -14,11 +15,7 @@ def build_business_context(
     sales_motion: str | None = None,
     inputs: list[Path] | None = None,
 ) -> BusinessContext:
-    source_documents: list[str] = []
-    raw_chunks: list[str] = []
-    for path in inputs or []:
-        source_documents.append(str(path))
-        raw_chunks.append(f"# Source: {path}\n{path.read_text(encoding='utf-8')}")
+    source_documents, raw_chunks = build_source_context(source_files=inputs or [])
 
     return BusinessContext(
         project_slug=slugify(project_slug),

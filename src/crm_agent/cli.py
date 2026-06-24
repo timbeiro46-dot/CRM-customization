@@ -62,6 +62,10 @@ def _prompt_list(label: str, *, default: str = "") -> list[str]:
     return [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
 
 
+def _prompt_path_list(label: str, *, default: str = "") -> list[Path]:
+    return [Path(item) for item in _prompt_list(label, default=default)]
+
+
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -255,6 +259,17 @@ def discover(
     constraint: list[str] | None = typer.Option(
         None, "--constraint", help="Constraint or business rule. Can be repeated."
     ),
+    website_url: list[str] | None = typer.Option(
+        None,
+        "--website-url",
+        help="Business website or public process/source URL. Can be repeated.",
+    ),
+    source_file: list[Path] | None = typer.Option(
+        None,
+        "--source-file",
+        "-s",
+        help="Process source file (.txt, .md, .csv, .tsv, .xlsx). Can be repeated.",
+    ),
     audit_file: Path = typer.Option(Path("crm_audit.yaml"), "--audit", help="CRM audit YAML."),
     out: Path = typer.Option(Path("business_context.yaml"), help="Business context YAML."),
     spec_out: Path = typer.Option(Path("crm_setup_spec.md"), help="Human-readable spec."),
@@ -271,6 +286,16 @@ def discover(
             )
             typer.echo("")
             business_name = business_name or typer.prompt("Nombre del negocio")
+            if not website_url:
+                website_url = _prompt_list(
+                    "Pagina web o URL con contexto del negocio",
+                    default="",
+                )
+            if not source_file:
+                source_file = _prompt_path_list(
+                    "Archivo de proceso, Excel o CSV con informacion actual",
+                    default="",
+                )
             project_slug = project_slug or typer.prompt(
                 "Nombre corto para agrupar cambios nuevos", default=business_name
             )
@@ -340,6 +365,8 @@ def discover(
             reporting_goals=reporting_goal or [],
             desired_hubs=desired_hubs,
             constraints=constraint or [],
+            website_urls=website_url or [],
+            source_files=source_file or [],
         )
         write_discovery_outputs(
             context=context,

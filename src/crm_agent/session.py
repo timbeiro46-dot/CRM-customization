@@ -764,6 +764,8 @@ def _business_summary(root: Path, artifacts: dict[str, ArtifactSnapshot]) -> lis
         summary.append(f"Datos criticos identificados: {len(context.data_requirements)}")
     if context.reporting_goals:
         summary.append(f"Reportes esperados: {len(context.reporting_goals)}")
+    if context.source_documents:
+        summary.append(f"Fuentes de contexto aportadas: {len(context.source_documents)}")
     return summary
 
 
@@ -795,6 +797,8 @@ def _pending_discovery_questions(
     if context is None:
         questions.extend(
             [
+                "Tienes pagina web, Excel, CSV o documento donde ya este explicado el "
+                "proceso comercial actual?",
                 "Cual es el resultado de negocio que quieres lograr con este CRM?",
                 "Como entra, avanza y se cierra una oportunidad hoy?",
                 "Que datos son obligatorios para calificar, priorizar o reportar una cuenta?",
@@ -809,6 +813,11 @@ def _pending_discovery_questions(
             questions.append("Que vistas, reportes o revisiones semanales necesita el equipo?")
         if not context.users:
             questions.append("Quienes usaran el CRM y que debe poder hacer cada rol?")
+        if not context.source_documents:
+            questions.append(
+                "Tienes pagina web, Excel, CSV o documento donde ya este explicado el "
+                "proceso comercial actual?"
+            )
 
     if audit:
         has_existing_configuration = any(

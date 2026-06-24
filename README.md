@@ -111,15 +111,24 @@ to reuse, create, extend, block, or require review. `plan` requires a
 or capability hashes no longer match.
 
 `discover` asks for business model, roles, sales process, pipeline stages,
-critical data, reporting goals, desired hubs, and constraints. It writes a
-business context and a human-readable `crm_setup_spec.md`. Review and approve
-that spec before generating the technical CRM design.
+critical data, reporting goals, desired hubs, constraints, and optional context
+sources such as a website, CSV, TSV, text/Markdown notes, or XLSX process file.
+It writes a business context and a human-readable `crm_setup_spec.md`. Review
+and approve that spec before generating the technical CRM design.
 `start` and `status` also surface the current supervision gates, pending discovery
 questions, and stale artifacts from local files.
 The CLI keeps the human experience separate from technical artifacts: users
 review `crm_setup_spec.md`, `crm_change_plan.md`, `dry_run_report.md`, and
 `readback_report.md`; YAML and JSON files remain support evidence unless a
 technical operator asks for them.
+Optional context sources can be passed directly:
+
+```bash
+crm-agent discover --audit crm_audit.yaml \
+  --website-url https://example.com \
+  --source-file proceso_ventas.xlsx
+```
+
 `design` refuses to run unless `crm_setup_spec.approval.json` matches the current
 `crm_setup_spec.md`.
 `review-plan` translates the technical manifest into `crm_change_plan.md`, a
