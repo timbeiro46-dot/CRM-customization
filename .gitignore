@@ -12,10 +12,15 @@ build/
 portal_capabilities.json
 business_context.yaml
 crm_audit.yaml
+crm_setup_spec.md
+crm_setup_spec.approval.json
 crm_design.yaml
 crm_reconciliation.yaml
 hubspot_manifest.yaml
+crm_change_plan.md
 hubspot_manifest.approval.json
+dry_run_report.md
 apply_log.jsonl
 readback_report.md
+.crm-agent/
 runs/

@@ -57,6 +57,7 @@ class BusinessContext(BaseModel):
     sales_motion: str | None = None
     users: list[str] = Field(default_factory=list)
     sales_process_notes: str = ""
+    pipeline_stages: list[str] = Field(default_factory=list)
     data_requirements: list[dict[str, Any]] = Field(default_factory=list)
     reporting_goals: list[str] = Field(default_factory=list)
     source_documents: list[str] = Field(default_factory=list)
@@ -333,6 +334,59 @@ class CrmReconciliation(BaseModel):
             if decision.desired_label.lower().strip() == desired_label.lower().strip():
                 return decision
         return None
+
+
+class ArtifactSnapshot(BaseModel):
+    path: str
+    exists: bool = False
+    hash: str | None = None
+
+
+class NextAction(BaseModel):
+    id: str
+    title: str
+    description: str
+    command: str | None = None
+    read_only: bool = True
+    requires_human: bool = True
+
+
+class SessionState(BaseModel):
+    generated_at: str
+    language: Literal["es"] = "es"
+    phase: Literal[
+        "legacy_app_setup",
+        "preflight",
+        "audit",
+        "discovery",
+        "spec_review",
+        "design",
+        "reconcile",
+        "plan",
+        "plan_review",
+        "blocked",
+        "validate",
+        "dry_run",
+        "ready_to_apply",
+        "verify",
+        "verified",
+    ]
+    token_configured: bool = False
+    artifacts: dict[str, ArtifactSnapshot] = Field(default_factory=dict)
+    blockers: list[str] = Field(default_factory=list)
+    business_summary: list[str] = Field(default_factory=list)
+    pending_questions: list[str] = Field(default_factory=list)
+    completed_gates: list[str] = Field(default_factory=list)
+    pending_gates: list[str] = Field(default_factory=list)
+    next_action: NextAction
+    safe_to_write: bool = False
+
+
+class SpecApproval(BaseModel):
+    spec_hash: str
+    approved_at: str
+    approved_by: str = "local_user"
+    note: str = "CRM setup spec approved for supervised design generation."
 
 
 class ManifestOperation(BaseModel):

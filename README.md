@@ -19,14 +19,21 @@ added later.
 
 ## Quickstart
 
-Before running the agent, configure the HubSpot legacy private app. This is not
-optional in the MVP.
+Start with the guided experience. It will inspect what is already configured and
+tell you the next safe step in Spanish:
+
+```bash
+crm-agent start
+```
+
+If this is a new machine or portal, the first step will be the HubSpot legacy
+private app setup. This is not optional in the MVP.
 
 ```bash
 crm-agent setup-legacy-app
 ```
 
-The short version:
+The short version of the HubSpot setup:
 
 - A HubSpot super admin must go to **Development** > **Legacy apps**.
 - Create a legacy app of type **Private**.
@@ -44,17 +51,33 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Then fill `HUBSPOT_PRIVATE_APP_TOKEN` in `.env` and run `preflight`.
+Then fill `HUBSPOT_PRIVATE_APP_TOKEN` in `.env` and run `crm-agent start` again.
 
 ## Workflow
 
+Recommended user-facing flow:
+
+```bash
+crm-agent start
+crm-agent status
+crm-agent discover --audit crm_audit.yaml
+crm-agent approve-spec --spec crm_setup_spec.md
+```
+
+For the Claude Code/GitHub operating contract, see
+[docs/supervised_agent_runbook.md](docs/supervised_agent_runbook.md).
+
+Advanced operator flow:
+
 ```bash
 crm-agent preflight --out portal_capabilities.json
-crm-agent intake --project-slug acme --business-name "Acme" --out business_context.yaml
 crm-agent audit --capabilities portal_capabilities.json --out crm_audit.yaml --hubs auto --depth metadata-quality
+crm-agent discover --audit crm_audit.yaml --out business_context.yaml --spec-out crm_setup_spec.md
+crm-agent approve-spec --spec crm_setup_spec.md
 crm-agent design --context business_context.yaml --capabilities portal_capabilities.json --out crm_design.yaml
 crm-agent reconcile --design crm_design.yaml --audit crm_audit.yaml --out crm_reconciliation.yaml
 crm-agent plan --design crm_design.yaml --capabilities portal_capabilities.json --reconciliation crm_reconciliation.yaml --out hubspot_manifest.yaml
+crm-agent review-plan --manifest hubspot_manifest.yaml --capabilities portal_capabilities.json --out crm_change_plan.md
 crm-agent validate --manifest hubspot_manifest.yaml --capabilities portal_capabilities.json --approve
 crm-agent apply --manifest hubspot_manifest.yaml --approval hubspot_manifest.approval.json
 crm-agent apply --manifest hubspot_manifest.yaml --approval hubspot_manifest.approval.json --execute
@@ -67,17 +90,57 @@ If no token is present, it still writes a capabilities-only audit and marks
 `live_enrichment: false`.
 
 `reconcile` compares the desired design against the audited portal and can decide
-to reuse, create, extend, block, or require review. `plan --reconciliation` rejects
-stale reconciliation files when the design or capability hashes no longer match.
+to reuse, create, extend, block, or require review. `plan` requires a
+`crm_reconciliation.yaml` file and rejects stale reconciliation when the design
+or capability hashes no longer match.
+
+`discover` asks for business model, roles, sales process, pipeline stages,
+critical data, reporting goals, desired hubs, and constraints. It writes a
+business context and a human-readable `crm_setup_spec.md`. Review and approve
+that spec before generating the technical CRM design.
+`start` and `status` also surface the current supervision gates, pending discovery
+questions, and stale artifacts from local files.
+`design` refuses to run unless `crm_setup_spec.approval.json` matches the current
+`crm_setup_spec.md`.
+`review-plan` translates the technical manifest into `crm_change_plan.md`, a
+human-readable plan with validation status, risks, rollback notes, blockers, and
+the exact dry-run/write commands.
+`validate --approve` refuses to create `hubspot_manifest.approval.json` unless
+`crm_change_plan.md` matches the current manifest hash.
+`apply` without `--execute` writes `dry_run_report.md`. `apply --execute` refuses
+to run unless that dry-run report matches the current manifest hash.
+`verify` writes `readback_report.md`; `status` treats it as final evidence only
+when it references the current manifest hash.
 
 `apply` defaults to dry-run. It will not write to HubSpot unless `--execute` is
 provided and the approval file matches the current manifest hash.
 
+## Persistent Agent Memory
+
+The agent uses filesystem memory instead of chat memory for resumability:
+
+- `.crm-agent/session_state.yaml` records phase, artifact hashes, blockers, gates,
+  and the next safe action.
+- `.crm-agent/progress.md` records durable progress events.
+- `.crm-agent/discovery_ledger.md` records discovery/spec handoffs.
+- `.crm-agent/approval_ledger.md` records spec and manifest approvals by artifact
+  hash.
+- `crm_change_plan.md` is the human change plan. It is considered current only
+  when it references the current manifest hash.
+- `dry_run_report.md` records the supervised dry-run and is required before
+  `apply --execute`.
+- `readback_report.md` records post-write evidence and must match the current
+  manifest hash.
+
+If base artifacts change after downstream gates, the agent marks the affected
+spec approval, reconciliation, change plan, dry-run, or readback evidence stale
+and routes back to the safe review step.
+
 ## Safety Contract
 
 - Tokens are loaded from local environment only and are redacted in logs.
-- `preflight`, `intake`, `audit`, `design`, `reconcile`, `plan`, `validate`, and
-  `verify` are read-only.
+- `preflight`, `intake`, `audit`, `discover`, `status`, `design`, `reconcile`,
+  `plan`, `validate`, and `verify` are read-only.
 - `apply` supports only idempotent create/update operations implemented in
   `HubSpotConnector`; destructive `DELETE` operations are blocked.
 - Manifest operations must use relative HubSpot API paths, declared risk, rollback
@@ -85,6 +148,9 @@ provided and the approval file matches the current manifest hash.
 - Existing CRM configuration is never overwritten automatically. Conflicting
   existing properties or medium-confidence fuzzy matches become blockers until a
   human resolves the decision.
+- Claude Code users should start with `/crm-start` or ask the agent to run
+  `crm-agent start`. The project includes `CLAUDE.md` and CRM skills that keep
+  the assistant in consultant mode instead of explaining code internals.
 
 ## Research Sources
 

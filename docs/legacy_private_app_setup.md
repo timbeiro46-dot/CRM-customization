@@ -1,6 +1,6 @@
 # Legacy Private App Setup
 
-Before running `crm-agent preflight`, each HubSpot portal must have a legacy
+Before running `crm-agent start`, each HubSpot portal must have a legacy
 private app configured by a HubSpot super admin.
 
 HubSpot's documentation says legacy private apps are still supported, but do not
@@ -79,14 +79,14 @@ HUBSPOT_PRIVATE_APP_TOKEN=pat-na1-REPLACE_ME
 
 ```bash
 crm-agent setup-legacy-app
-crm-agent preflight --out portal_capabilities.json
-crm-agent audit --capabilities portal_capabilities.json --out crm_audit.yaml
+crm-agent start
 ```
 
-`preflight` and `audit` are read-only. `preflight` validates that the token works
-and records the current portal capability snapshot. `audit` then records existing
-configuration, availability by hub, and aggregate data-quality signals before any
-design or write plan is created.
+`start` will tell the user the next safe step. The first technical steps are
+`preflight` and `audit`; both are read-only. `preflight` validates that the token
+works and records the current portal capability snapshot. `audit` then records
+existing configuration, availability by hub, and aggregate data-quality signals
+before any design or write plan is created.
 
 ## Official References
 

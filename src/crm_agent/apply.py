@@ -45,6 +45,90 @@ def apply_manifest(
     return results
 
 
+def dry_run_manifest(
+    *, manifest: HubSpotManifest, approval: ManifestApproval
+) -> list[dict[str, Any]]:
+    assert_approval(manifest, approval)
+    return [
+        _event(
+            operation,
+            _dry_run_status(operation),
+            {
+                "endpoint": operation.endpoint,
+                "risk": operation.risk,
+                "expected": operation.expected,
+                "rollback": operation.rollback,
+                "reason": operation.reason,
+                "payload": operation.payload,
+            },
+        )
+        for operation in manifest.operations
+    ]
+
+
+def _dry_run_status(operation: ManifestOperation) -> str:
+    return "dry_run" if operation.status == "planned" and operation.action != "noop" else "skipped"
+
+
+def render_dry_run_report(
+    *,
+    manifest: HubSpotManifest,
+    approval: ManifestApproval,
+    results: list[dict[str, Any]],
+    manifest_path: Path = Path("hubspot_manifest.yaml"),
+    approval_path: Path = Path("hubspot_manifest.approval.json"),
+) -> str:
+    approved = approval.manifest_hash == manifest.manifest_hash
+    dry_run_count = sum(1 for item in results if item["status"] == "dry_run")
+    skipped_count = sum(1 for item in results if item["status"] == "skipped")
+    lines = [
+        "# Dry-run supervisado HubSpot",
+        "",
+        "## Resumen",
+        f"- Manifest: `{manifest_path}`",
+        f"- Approval: `{approval_path}`",
+        f"- Manifest hash: `{manifest.manifest_hash}`",
+        f"- Aprobacion vigente: {'si' if approved else 'no'}",
+        f"- Operaciones simuladas: {dry_run_count}",
+        f"- Operaciones omitidas: {skipped_count}",
+        "",
+        "## Resultado por operacion",
+    ]
+    for item in results:
+        details = item.get("details", {})
+        lines.extend(
+            [
+                f"- `{item['operation_id']}`",
+                f"  - Accion: {item['action']}",
+                f"  - Objeto: {item['object_type']}",
+                f"  - Estado: {item['status']}",
+                f"  - Riesgo: {details.get('risk', 'n/a')}",
+                f"  - Endpoint: `{details.get('endpoint', 'n/a')}`",
+                f"  - Esperado: {details.get('expected') or 'n/a'}",
+                f"  - Rollback: {details.get('rollback') or 'n/a'}",
+            ]
+        )
+        if details.get("reason"):
+            lines.append(f"  - Razon: {details['reason']}")
+    lines.extend(
+        [
+            "",
+            "## Gate de escritura",
+            (
+                "Este reporte solo autoriza a pedir aprobacion humana para `--execute`; "
+                "no escribe en HubSpot por si mismo."
+            ),
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def dry_run_report_current(report_path: Path, manifest: HubSpotManifest) -> bool:
+    if not report_path.exists():
+        return False
+    return f"Manifest hash: `{manifest.manifest_hash}`" in report_path.read_text(encoding="utf-8")
+
+
 def _event(operation: ManifestOperation, status: str, details: dict[str, Any]) -> dict[str, Any]:
     return {
         "timestamp": utc_now_iso(),
