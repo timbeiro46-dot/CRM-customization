@@ -6,7 +6,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from crm_agent.cli import app
-from crm_agent.io import stable_hash, write_json, write_yaml
+from crm_agent.io import read_yaml, stable_hash, write_json, write_yaml
 from crm_agent.models import (
     AuditObjectMetadata,
     BusinessContext,
@@ -146,7 +146,7 @@ def test_status_summary_shows_phase_route_and_one_strategic_question(tmp_path) -
     assert "Ruta:" in summary
     assert "* Descubrir" in summary
     assert "Pregunta estrategica ahora" in summary
-    assert "Cual es el resultado de negocio" in summary
+    assert "Tienes pagina web, Excel, CSV o documento" in summary
     assert "Como entra, avanza y se cierra" not in summary
     assert "planner.py" not in summary
     assert "No se escribira nada en HubSpot" in summary
@@ -191,6 +191,56 @@ def test_setup_spec_adapts_to_existing_portal_without_technical_leak(
     assert "crm_change_plan.md" in spec
     assert "Artefactos tecnicos de soporte" in spec
     assert "No necesitas editar estos archivos" in spec
+
+
+def test_discover_cli_accepts_website_and_process_source_file(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    capabilities = fake_capabilities()
+    write_json(tmp_path / "portal_capabilities.json", capabilities)
+    write_yaml(tmp_path / "crm_audit.yaml", fake_audit(capabilities))
+    source_file = tmp_path / "proceso_ventas.csv"
+    source_file.write_text(
+        "etapa,entrada,salida\nLead,Formulario web,Calificado\nPropuesta,Demo enviada,Cierre\n",
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "discover",
+            "--no-interactive",
+            "--business-name",
+            "Acme",
+            "--project-slug",
+            "acme",
+            "--website-url",
+            "acme.example",
+            "--source-file",
+            str(source_file),
+            "--sales-process-notes",
+            "Inbound lead, qualification, proposal, negotiation and close.",
+            "--user-role",
+            "Sales team",
+            "--pipeline-stage",
+            "Inbound",
+            "--critical-data",
+            "companies:segment:Segment:text",
+            "--reporting-goal",
+            "Pipeline health by owner",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    context = read_yaml(tmp_path / "business_context.yaml")
+    assert "https://acme.example" in context["source_documents"]
+    assert str(source_file) in context["source_documents"]
+    assert "Fuente web declarada" in context["raw_notes"]
+    assert "Vista previa tabular" in context["raw_notes"]
+    spec = (tmp_path / "crm_setup_spec.md").read_text(encoding="utf-8")
+    assert "## Fuentes aportadas para contexto" in spec
+    assert "https://acme.example" in spec
+    assert "Tienes pagina web, Excel" not in spec
 
 
 def test_start_cli_reports_safe_next_step_without_technical_map(tmp_path, monkeypatch) -> None:
@@ -534,6 +584,7 @@ def test_claude_assets_exist_and_enforce_consultant_mode() -> None:
     assert "one strategic question" in start_skill
     assert "adaptive interview" in discovery_skill
     assert "Ask one high-value question at a time" in discovery_skill
+    assert "--source-file" in discovery_skill
     assert "Resume from artifacts" in status_skill
     assert "strategic question" in status_skill
     assert "Ask one question at a time" in guided_doc

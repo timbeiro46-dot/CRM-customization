@@ -5,6 +5,7 @@ from pathlib import Path
 from crm_agent.io import slugify, utc_now_iso, write_yaml
 from crm_agent.models import BusinessContext, CrmAudit, SessionState
 from crm_agent.session import DISCOVERY_LEDGER_FILE, GUIDED_ROUTE, append_progress
+from crm_agent.source_context import build_source_context
 
 
 def build_business_context_from_discovery(
@@ -20,6 +21,8 @@ def build_business_context_from_discovery(
     reporting_goals: list[str] | None = None,
     desired_hubs: str | None = None,
     constraints: list[str] | None = None,
+    website_urls: list[str] | None = None,
+    source_files: list[Path] | None = None,
 ) -> BusinessContext:
     data_requirements = [_parse_critical_data(item) for item in _normalize_items(critical_data)]
     notes = []
@@ -27,6 +30,11 @@ def build_business_context_from_discovery(
         notes.append(f"Hubs deseados: {desired_hubs}")
     for constraint in _normalize_items(constraints):
         notes.append(f"Restriccion: {constraint}")
+    source_documents, source_notes = build_source_context(
+        website_urls=website_urls,
+        source_files=source_files,
+    )
+    notes.extend(source_notes)
     return BusinessContext(
         project_slug=slugify(project_slug),
         business_name=business_name,
@@ -37,6 +45,7 @@ def build_business_context_from_discovery(
         pipeline_stages=_normalize_items(pipeline_stages),
         data_requirements=[item for item in data_requirements if item],
         reporting_goals=_normalize_items(reporting_goals),
+        source_documents=source_documents,
         raw_notes="\n".join(notes),
     )
 
@@ -112,6 +121,13 @@ def render_setup_spec(
                 "- Reportes esperados: "
                 f"{', '.join(context.reporting_goals) if context.reporting_goals else 'pendiente'}"
             ),
+            "",
+            "## Fuentes aportadas para contexto",
+        ]
+    )
+    lines.extend(_source_lines(context))
+    lines.extend(
+        [
             "",
             "## Lectura del portal existente",
             _portal_adaptation_summary(audit),
@@ -210,6 +226,7 @@ def render_setup_spec(
             "- `business_context.yaml`: contexto estructurado que usa el agente.",
             "- `crm_audit.yaml`: lectura read-only del portal, si existe.",
             "- `.crm-agent/discovery_ledger.md`: historial local de discovery.",
+            "- Fuentes web o archivos quedan referenciados en `business_context.yaml`.",
             "",
             "No necesitas editar estos archivos para revisar la ruta humana.",
         ]
@@ -244,6 +261,21 @@ def _portal_adaptation_summary(audit: CrmAudit | None) -> str:
     )
 
 
+def _source_lines(context: BusinessContext) -> list[str]:
+    if not context.source_documents:
+        return [
+            "- No se aportaron pagina web, Excel, CSV o documento de proceso en este discovery.",
+            (
+                "- Recomendacion: si existe una fuente donde ya este explicado el proceso "
+                "comercial, agregarla antes de aprobar el diagnostico."
+            ),
+        ]
+    lines = [f"- Fuente: {source}" for source in context.source_documents]
+    if context.raw_notes:
+        lines.append("- Contexto extraido o declarado: incluido en `business_context.yaml`.")
+    return lines
+
+
 def _audit_has_existing_configuration(audit: CrmAudit) -> bool:
     return any(
         metadata.property_count
@@ -265,6 +297,11 @@ def _open_questions(
         questions.append("Que vistas o reportes deben revisar los lideres semanalmente?")
     if not context.pipeline_stages:
         questions.append("Que etapas reales debe tener el pipeline comercial?")
+    if not context.source_documents:
+        questions.append(
+            "Tienes pagina web, Excel, CSV o documento donde ya este explicado el proceso "
+            "comercial actual?"
+        )
     if audit is None:
         questions.append(
             "Falta audit read-only; no se ha probado que configuracion existente conviene "
@@ -283,6 +320,7 @@ def _open_questions(
 
 def discovery_questions(audit: CrmAudit | None) -> list[str]:
     questions = [
+        "Tienes pagina web, Excel, CSV o documento donde ya este explicado el proceso actual?",
         "Que resultado de negocio debe mejorar este CRM primero?",
         "Como entra, avanza y se cierra una oportunidad hoy?",
         "Que decision debe poder tomar ventas con datos confiables?",
@@ -314,6 +352,8 @@ def _append_discovery_ledger(context: BusinessContext, spec_path: Path, *, root:
             handle.write(f"- Usuarios/roles: {', '.join(context.users)}\n")
         if context.pipeline_stages:
             handle.write(f"- Etapas pipeline: {', '.join(context.pipeline_stages)}\n")
+        if context.source_documents:
+            handle.write(f"- Fuentes de contexto: {', '.join(context.source_documents)}\n")
         handle.write(f"- Spec: {spec_path}\n\n")
 
 
