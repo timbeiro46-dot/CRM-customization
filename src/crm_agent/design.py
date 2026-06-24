@@ -14,15 +14,7 @@ from crm_agent.models import (
 
 def build_design(context: BusinessContext, capabilities: PortalCapabilities) -> CrmDesign:
     properties = _build_property_specs(context)
-    stages = [
-        PipelineStageSpec(
-            label=item["label"],
-            probability=item["probability"],
-            closed=item["closed"],
-            display_order=index,
-        )
-        for index, item in enumerate(DEFAULT_DEAL_STAGES)
-    ]
+    stages = _build_pipeline_stages(context)
     pipelines = [
         PipelineSpec(
             object_type="deals",
@@ -82,6 +74,78 @@ def _build_property_specs(context: BusinessContext) -> list[PropertySpec]:
             )
         )
     return specs
+
+
+def _build_pipeline_stages(context: BusinessContext) -> list[PipelineStageSpec]:
+    if not context.pipeline_stages:
+        return [
+            PipelineStageSpec(
+                label=item["label"],
+                probability=item["probability"],
+                closed=item["closed"],
+                display_order=index,
+            )
+            for index, item in enumerate(DEFAULT_DEAL_STAGES)
+        ]
+
+    labels = _ensure_closed_stages(context.pipeline_stages)
+    non_closed_count = sum(1 for label in labels if not _closed_kind(label))
+    open_index = 0
+    stages: list[PipelineStageSpec] = []
+    for index, label in enumerate(labels):
+        closed_kind = _closed_kind(label)
+        if closed_kind == "won":
+            probability = "1.0"
+            closed = True
+        elif closed_kind == "lost":
+            probability = "0.0"
+            closed = True
+        else:
+            open_index += 1
+            probability = _open_probability(open_index, non_closed_count)
+            closed = False
+        stages.append(
+            PipelineStageSpec(
+                label=label,
+                probability=probability,
+                closed=closed,
+                display_order=index,
+            )
+        )
+    return stages
+
+
+def _ensure_closed_stages(labels: list[str]) -> list[str]:
+    unique = []
+    seen: set[str] = set()
+    for label in labels:
+        normalized = label.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique.append(label.strip())
+    if not any(_closed_kind(label) == "won" for label in unique):
+        unique.append("Closed Won")
+    if not any(_closed_kind(label) == "lost" for label in unique):
+        unique.append("Closed Lost")
+    return unique
+
+
+def _closed_kind(label: str) -> str | None:
+    normalized = slugify(label)
+    if normalized in {"closed_won", "ganado", "cerrado_ganado"}:
+        return "won"
+    if normalized in {"closed_lost", "perdido", "cerrado_perdido"}:
+        return "lost"
+    return None
+
+
+def _open_probability(position: int, total: int) -> str:
+    if total <= 1:
+        return "0.10"
+    ratio = position / total
+    value = min(0.85, max(0.10, ratio * 0.80))
+    return f"{value:.2f}"
 
 
 def _default_group_name(object_type: str) -> str:

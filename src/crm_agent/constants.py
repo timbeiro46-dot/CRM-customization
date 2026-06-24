@@ -37,9 +37,13 @@ SUPPORTED_FIELD_TYPES = {
 }
 
 READ_ONLY_COMMANDS = {
+    "start",
+    "status",
     "preflight",
     "intake",
     "audit",
+    "discover",
+    "approve-spec",
     "design",
     "reconcile",
     "plan",
