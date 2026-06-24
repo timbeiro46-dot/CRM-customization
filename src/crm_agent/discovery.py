@@ -4,7 +4,7 @@ from pathlib import Path
 
 from crm_agent.io import slugify, utc_now_iso, write_yaml
 from crm_agent.models import BusinessContext, CrmAudit, SessionState
-from crm_agent.session import DISCOVERY_LEDGER_FILE, append_progress
+from crm_agent.session import DISCOVERY_LEDGER_FILE, GUIDED_ROUTE, append_progress
 
 
 def build_business_context_from_discovery(
@@ -66,38 +66,57 @@ def write_discovery_outputs(
 def render_setup_spec(
     *, context: BusinessContext, audit: CrmAudit | None, state: SessionState
 ) -> str:
+    open_questions = _open_questions(context=context, audit=audit, state=state)
     lines = [
-        "# Diagnostico y ruta recomendada de HubSpot CRM",
+        "# Ruta recomendada para adaptar HubSpot CRM",
         "",
-        "## Resumen",
+        "## En palabras simples",
+        (
+            "Este documento traduce el discovery a una ruta de CRM. No escribe en "
+            "HubSpot, no aprueba cambios y no reemplaza la revision humana."
+        ),
+        "",
+        "## Decision de alcance",
         f"- Empresa: {context.business_name}",
-        f"- Namespace propuesto: `{context.project_slug}`",
+        f"- Grupo propuesto para cambios nuevos: `{context.project_slug}`",
         f"- Industria: {context.industry or 'pendiente'}",
-        f"- Movimiento comercial: {context.sales_motion or 'pendiente'}",
+        f"- Forma de venta: {context.sales_motion or 'pendiente'}",
         (
             "- Usuarios/roles: "
             f"{', '.join(context.users) if context.users else 'pendiente'}"
         ),
-        "- Estado: este documento es read-only y debe aprobarse antes de generar diseno.",
+        "- Estado: pendiente de aprobacion humana por hash antes de generar diseno.",
         "",
-        "## Proceso comercial entendido",
-        context.sales_process_notes or "Pendiente de completar.",
-        "",
-        "## Etapas del pipeline",
-        (
-            "- Etapas propuestas: "
-            f"{', '.join(context.pipeline_stages) if context.pipeline_stages else 'pendiente'}"
-        ),
-        "",
-        "## Datos y reporting",
-        f"- Datos criticos identificados: {len(context.data_requirements)}",
-        (
-            "- Reportes esperados: "
-            f"{', '.join(context.reporting_goals) if context.reporting_goals else 'pendiente'}"
-        ),
-        "",
-        "## Diagnostico del portal",
+        "## Ruta guiada",
     ]
+    lines.extend(f"- {label}: {description}." for label, description in GUIDED_ROUTE)
+    lines.extend(
+        [
+            "",
+            "## Proceso comercial entendido",
+        ]
+    )
+    lines.extend(
+        [
+            context.sales_process_notes or "Pendiente de completar.",
+            "",
+            "## Etapas del pipeline",
+            (
+                "- Etapas propuestas: "
+                f"{', '.join(context.pipeline_stages) if context.pipeline_stages else 'pendiente'}"
+            ),
+            "",
+            "## Datos y reporting",
+            f"- Datos criticos identificados: {len(context.data_requirements)}",
+            (
+                "- Reportes esperados: "
+                f"{', '.join(context.reporting_goals) if context.reporting_goals else 'pendiente'}"
+            ),
+            "",
+            "## Lectura del portal existente",
+            _portal_adaptation_summary(audit),
+        ]
+    )
     if audit:
         available = [
             hub for hub, result in audit.hubs.items() if result.availability.status == "available"
@@ -127,33 +146,39 @@ def render_setup_spec(
     lines.extend(
         [
             "",
-            "## Ruta recomendada",
-            "- Mantener todo en modo read-only hasta completar diseno, reconciliacion y manifest.",
+            "## Recomendacion del agente",
             (
-                "- Reutilizar propiedades o pipelines existentes solo cuando reconcile "
-                "tenga alta confianza."
+                "- Mantener todo en modo read-only hasta completar discovery, diseno, "
+                "reconciliacion, plan humano y dry-run."
             ),
-            "- Bloquear conflictos o coincidencias ambiguas para decision humana.",
-            "- Aprobar este diagnostico por hash antes de generar diseno tecnico.",
+            (
+                "- Reutilizar propiedades, pipelines o etiquetas existentes cuando la "
+                "reconciliacion tenga alta confianza."
+            ),
+            "- Bloquear coincidencias ambiguas para decision humana, no resolverlas a ciegas.",
+            "- Aprobar este diagnostico solo si representa el proceso comercial real.",
             "",
             "## Preguntas abiertas",
         ]
     )
-    open_questions = _open_questions(context=context, audit=audit, state=state)
     if open_questions:
-        lines.extend(f"- {question}" for question in open_questions)
+        lines.append(f"- Siguiente pregunta estrategica: {open_questions[0]}")
+        for question in open_questions[1:]:
+            lines.append(f"- Luego: {question}")
     else:
         lines.append("- No hay preguntas criticas pendientes para pasar a diseno supervisado.")
     lines.extend(
         [
             "",
-            "## Gates antes de escribir",
+            "## Gates seguros antes de escribir",
             "- `crm_setup_spec.md` aprobado por hash vigente.",
             "- `crm_design.yaml` generado desde el contexto aprobado.",
             "- `crm_reconciliation.yaml` comparado contra audit actual.",
             "- `hubspot_manifest.yaml` validado sin blockers.",
+            "- `crm_change_plan.md` vigente y revisado en lenguaje humano.",
             "- `hubspot_manifest.approval.json` vigente para el hash actual.",
             "- Dry-run de `crm-agent apply` revisado antes de cualquier `--execute`.",
+            "- Aprobacion explicita del usuario para ejecutar `--execute`.",
             "",
             "## Fuera de alcance V1",
             (
@@ -172,14 +197,60 @@ def render_setup_spec(
         [
             "",
             "## Aprobacion",
-            "Si este diagnostico es correcto, apruebalo con:",
+            (
+                "Si este diagnostico representa el negocio, apruebalo con el comando de "
+                "abajo. Si no, ajustamos discovery antes de avanzar."
+            ),
             "",
             "```bash",
             "crm-agent approve-spec --spec crm_setup_spec.md",
             "```",
+            "",
+            "## Artefactos tecnicos de soporte",
+            "- `business_context.yaml`: contexto estructurado que usa el agente.",
+            "- `crm_audit.yaml`: lectura read-only del portal, si existe.",
+            "- `.crm-agent/discovery_ledger.md`: historial local de discovery.",
+            "",
+            "No necesitas editar estos archivos para revisar la ruta humana.",
         ]
     )
     return "\n".join(lines) + "\n"
+
+
+def _portal_adaptation_summary(audit: CrmAudit | None) -> str:
+    if audit is None:
+        return (
+            "Aun falta el audit read-only. La ruta recomendada debe esperar esa lectura "
+            "para adaptarse al portal y al plan disponible."
+        )
+    unavailable_hubs = [
+        hub
+        for hub, result in audit.hubs.items()
+        if result.availability.status == "not_available"
+    ]
+    if _audit_has_existing_configuration(audit):
+        return (
+            "El portal ya tiene configuracion visible. La ruta debe preferir conservar "
+            "y reconciliar antes de crear cosas nuevas."
+        )
+    if unavailable_hubs:
+        return (
+            "Algunos hubs no estan disponibles por plan, scopes o acceso. La ruta debe "
+            "priorizar CRM/Sales core y dejar fuera lo no confirmado."
+        )
+    return (
+        "No hay configuracion existente relevante en el audit disponible. La ruta puede "
+        "avanzar con diseno supervisado, manteniendo gates antes de escribir."
+    )
+
+
+def _audit_has_existing_configuration(audit: CrmAudit) -> bool:
+    return any(
+        metadata.property_count
+        or metadata.pipeline_count
+        or metadata.association_label_count
+        for metadata in audit.objects.values()
+    )
 
 
 def _open_questions(
@@ -199,7 +270,7 @@ def _open_questions(
             "Falta audit read-only; no se ha probado que configuracion existente conviene "
             "conservar."
         )
-    elif any(item.availability.status == "available" for item in audit.hubs.values()):
+    elif _audit_has_existing_configuration(audit):
         questions.append(
             "Que assets existentes son intocables aunque el diseno proponga algo parecido?"
         )
@@ -212,12 +283,12 @@ def _open_questions(
 
 def discovery_questions(audit: CrmAudit | None) -> list[str]:
     questions = [
-        "Cual es el nombre del negocio?",
-        "Como describirias el proceso comercial desde lead hasta cierre?",
-        "Que datos son obligatorios para calificar una oportunidad?",
-        "Que reportes o vistas necesita revisar el equipo cada semana?",
+        "Que resultado de negocio debe mejorar este CRM primero?",
+        "Como entra, avanza y se cierra una oportunidad hoy?",
+        "Que decision debe poder tomar ventas con datos confiables?",
+        "Que reunion, vista o reporte semanal debe volverse mas facil?",
     ]
-    if audit and any(item.availability.status == "available" for item in audit.hubs.values()):
+    if audit and _audit_has_existing_configuration(audit):
         questions.append(
             "Hay configuracion existente en HubSpot. "
             "Que elementos quieres conservar si son compatibles?"

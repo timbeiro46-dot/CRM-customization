@@ -113,7 +113,11 @@ def start(
     try:
         state = build_session_state()
         persist_session_state(state)
-        typer.echo("Bienvenido. Voy a guiarte paso a paso y mantener todo seguro.")
+        typer.echo(
+            "Soy tu agente de CRM. Voy a liderar la ruta por fases, hacer una "
+            "pregunta estrategica a la vez y mantener HubSpot bloqueado hasta que "
+            "apruebes un plan exacto."
+        )
         typer.echo("")
         typer.echo(format_session_summary(state, technical=technical))
     except (CrmAgentError, ValidationError, OSError, ValueError) as error:
@@ -261,19 +265,26 @@ def discover(
     """Run a guided business discovery and write the setup spec."""
     try:
         if interactive:
+            typer.echo(
+                "Discovery guiado: voy a preguntarte de a una decision de negocio. "
+                "Puedes responder en lenguaje normal; yo traduzco despues."
+            )
+            typer.echo("")
             business_name = business_name or typer.prompt("Nombre del negocio")
             project_slug = project_slug or typer.prompt(
-                "Namespace corto para propiedades custom", default=business_name
+                "Nombre corto para agrupar cambios nuevos", default=business_name
             )
             industry = industry or typer.prompt("Industria", default="")
-            sales_motion = sales_motion or typer.prompt("Modelo comercial", default="")
+            sales_motion = sales_motion or typer.prompt(
+                "Como vende el negocio hoy", default=""
+            )
             if not user_role:
                 user_role = _prompt_list(
-                    "Quienes usaran el CRM y que rol tienen",
+                    "Quienes usaran el CRM y que necesita cada rol",
                     default="Ventas, Lider comercial",
                 )
             sales_process_notes = sales_process_notes or typer.prompt(
-                "Describe el proceso comercial desde lead hasta cierre"
+                "Como entra, avanza y se cierra una oportunidad"
             )
             if not pipeline_stage:
                 pipeline_stage = _prompt_list(
@@ -282,7 +293,7 @@ def discover(
                 )
             if not critical_data:
                 critical_data = _prompt_list(
-                    "Datos criticos para calificar o reportar",
+                    "Datos criticos para calificar, priorizar o reportar",
                     default="Segmento, Fuente, Motivo de perdida",
                 )
             if not reporting_goal:

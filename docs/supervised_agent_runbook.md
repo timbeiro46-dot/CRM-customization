@@ -4,6 +4,9 @@ This repo is a Claude-native, supervised agent for HubSpot CRM/Sales
 parameterization. It is designed for a non-technical Spanish-speaking user and
 for safe handoff through Claude Code and GitHub.
 
+For the human-facing experience contract, use
+[guided_experience.md](guided_experience.md).
+
 ## Operating Principle
 
 The agent may diagnose, audit, reconcile, and plan autonomously. It must not
@@ -72,11 +75,12 @@ After apply:
 ## Claude Code Behavior
 
 Start with `/crm-start` or `crm-agent status`. Keep answers in Spanish unless the
-user asks otherwise. Give one safe next action, not a module tour.
+user asks otherwise. Name the current phase, give one strategic question or one
+safe next action, not a module tour.
 
 Use adaptive discovery:
 
-- Ask a few business questions at a time.
+- Ask one business question at a time unless the user asks for a checklist.
 - Prefer business language over API language.
 - Capture roles, sales process, pipeline stages, critical data, weekly reporting,
   desired hubs, constraints, and existing configuration to preserve.
@@ -84,6 +88,9 @@ Use adaptive discovery:
   discovered stages and appends closed-won/lost exits when missing.
 - Use `crm_audit.yaml` to ask what existing assets should be preserved.
 - Persist discovery through `crm-agent discover`, then route to spec review.
+- Keep human review on `crm_setup_spec.md`, `crm_change_plan.md`,
+  `dry_run_report.md`, and `readback_report.md`; keep YAML/JSON/manifests as
+  support evidence unless the user asks for technical detail.
 
 If `status` reports stale artifacts, rerun the relevant reconcile, review,
 validation, dry-run, or readback step instead of continuing downstream.

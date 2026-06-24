@@ -40,24 +40,34 @@ def render_change_plan(
     blocked = [item for item in manifest.operations if item.status == "blocked"]
 
     lines = [
-        "# Plan humano de cambios HubSpot",
+        "# Revision humana antes de cambiar HubSpot",
         "",
-        "## Resumen ejecutivo",
-        f"- Estado: {applicability}",
+        "## Lo importante",
+        f"- Estado del plan: {applicability}",
         f"- Aprobacion: {approval_status}",
         f"- Manifest hash: `{manifest.manifest_hash}`",
-        f"- Proyecto/namespace: `{manifest.project_slug}`",
-        f"- Version API: `{manifest.api_version}`",
-        f"- Operaciones que cambiarian HubSpot: {len(planned)}",
-        f"- Operaciones sin cambio: {len(noops)}",
-        f"- Operaciones bloqueadas: {len(blocked)}",
+        f"- Grupo de cambios nuevos: `{manifest.project_slug}`",
+        f"- Cambios reales propuestos: {len(planned)}",
+        f"- Elementos reutilizados o sin cambio: {len(noops)}",
+        f"- Decisiones bloqueadas: {len(blocked)}",
         "",
-        "## Validacion",
+        "## Decision requerida",
     ]
-    if report.passed:
-        lines.append("- Validacion de seguridad: pasa.")
+    if blocked:
+        lines.append("- Resolver los bloqueos antes de aprobar este plan.")
+    elif report.passed:
+        lines.append(
+            "- Revisar este plan. Si estas de acuerdo, el siguiente paso seguro es "
+            "aprobar el hash y correr dry-run."
+        )
     else:
-        lines.append("- Validacion de seguridad: no pasa.")
+        lines.append("- Corregir los errores de validacion antes de pedir aprobacion.")
+
+    lines.extend(["", "## Validacion de seguridad"])
+    if report.passed:
+        lines.append("- Resultado: pasa.")
+    else:
+        lines.append("- Resultado: no pasa.")
     for error in report.errors:
         lines.append(f"- Error: {error}")
     for warning in report.warnings:
@@ -66,7 +76,7 @@ def render_change_plan(
     lines.extend(
         [
             "",
-            "## Resumen por tipo",
+            "## Resumen por tipo de cambio",
         ]
     )
     for key, count in _operation_counts(manifest.operations).items():
@@ -74,10 +84,10 @@ def render_change_plan(
     if not manifest.operations:
         lines.append("- No hay operaciones en el manifest.")
 
-    lines.extend(["", "## Cambios planeados"])
+    lines.extend(["", "## Cambios que se simularan"])
     if planned:
         for operation in planned:
-            lines.extend(_operation_lines(operation))
+            lines.extend(_human_operation_lines(operation))
     else:
         lines.append("- No hay cambios planeados que escriban en HubSpot.")
 
@@ -91,12 +101,18 @@ def render_change_plan(
     lines.extend(["", "## Bloqueos"])
     if blocked:
         for operation in blocked:
-            lines.append(f"- `{operation.id}`: {operation.reason}")
+            lines.extend(_blocked_operation_lines(operation))
     else:
         lines.append("- Ningun bloqueo en el manifest.")
 
     lines.extend(
         [
+            "",
+            "## Gates antes de escribir",
+            "- Este plan humano debe contener el hash actual del manifest.",
+            "- `crm-agent validate --approve` debe pasar y aprobar ese hash.",
+            "- `crm-agent apply` sin `--execute` debe generar `dry_run_report.md` vigente.",
+            "- El usuario debe aprobar explicitamente `--execute` despues de revisar el dry-run.",
             "",
             "## Comandos supervisados",
             "Validar y aprobar el hash actual:",
@@ -129,8 +145,16 @@ def render_change_plan(
                 "No ejecutar `--execute` hasta que el usuario apruebe explicitamente este "
                 "manifest hash y haya revisado el dry-run."
             ),
+            "",
+            "## Apendice tecnico",
+            f"- Manifest: `{manifest_path}`",
+            f"- Capacidades: `{capabilities_path}`",
+            f"- Approval esperado: `{approval_path}`",
+            f"- Version API: `{manifest.api_version}`",
         ]
     )
+    for operation in planned:
+        lines.extend(_technical_operation_lines(operation))
     return "\n".join(lines) + "\n"
 
 
@@ -142,19 +166,37 @@ def _operation_counts(operations: list[ManifestOperation]) -> dict[str, int]:
     return dict(sorted(counter.items()))
 
 
-def _operation_lines(operation: ManifestOperation) -> list[str]:
+def _human_operation_lines(operation: ManifestOperation) -> list[str]:
     expected = ", ".join(f"{key}={value}" for key, value in operation.expected.items())
     lines = [
         f"- `{operation.id}`",
-        f"  - Accion: {_action_label(operation)}",
-        f"  - Objeto: {operation.object_type}",
-        f"  - Riesgo: {operation.risk}",
-        f"  - Endpoint: `{operation.endpoint}`",
-        f"  - Esperado: {expected or 'sin expectativa declarada'}",
-        f"  - Rollback: {operation.rollback}",
+        f"  - Que haria: {_action_label(operation)} en {operation.object_type}.",
+        f"  - Riesgo: {operation.risk}.",
+        f"  - Resultado esperado: {expected or 'sin expectativa declarada'}.",
+        f"  - Si algo sale mal: {operation.rollback}",
     ]
     if operation.reason:
-        lines.append(f"  - Razon: {operation.reason}")
+        lines.append(f"  - Por que: {operation.reason}")
+    return lines
+
+
+def _blocked_operation_lines(operation: ManifestOperation) -> list[str]:
+    return [
+        f"- `{operation.id}`",
+        f"  - Decision pendiente: {operation.reason}",
+        "  - Siguiente paso: resolver este punto antes de aprobar o simular cambios.",
+    ]
+
+
+def _technical_operation_lines(operation: ManifestOperation) -> list[str]:
+    lines = [
+        f"- `{operation.id}`",
+        f"  - Accion tecnica: {operation.action}",
+        f"  - Metodo: {operation.method}",
+        f"  - Endpoint: `{operation.endpoint}`",
+    ]
+    if operation.payload:
+        lines.append(f"  - Payload keys: {', '.join(sorted(operation.payload.keys()))}")
     return lines
 
 

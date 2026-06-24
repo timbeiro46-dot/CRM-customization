@@ -84,6 +84,12 @@ def render_dry_run_report(
     lines = [
         "# Dry-run supervisado HubSpot",
         "",
+        "## En palabras simples",
+        (
+            "Este reporte simulo el plan aprobado. No escribio en HubSpot y sirve "
+            "para decidir si se autoriza el `--execute` real."
+        ),
+        "",
         "## Resumen",
         f"- Manifest: `{manifest_path}`",
         f"- Approval: `{approval_path}`",
@@ -99,11 +105,10 @@ def render_dry_run_report(
         lines.extend(
             [
                 f"- `{item['operation_id']}`",
-                f"  - Accion: {item['action']}",
+                f"  - Accion tecnica: {item['action']}",
                 f"  - Objeto: {item['object_type']}",
                 f"  - Estado: {item['status']}",
                 f"  - Riesgo: {details.get('risk', 'n/a')}",
-                f"  - Endpoint: `{details.get('endpoint', 'n/a')}`",
                 f"  - Esperado: {details.get('expected') or 'n/a'}",
                 f"  - Rollback: {details.get('rollback') or 'n/a'}",
             ]
@@ -115,11 +120,18 @@ def render_dry_run_report(
             "",
             "## Gate de escritura",
             (
-                "Este reporte solo autoriza a pedir aprobacion humana para `--execute`; "
-                "no escribe en HubSpot por si mismo."
+                "Este reporte solo permite pedir aprobacion humana para `--execute`; "
+                "no autoriza escritura por si mismo."
             ),
+            "",
+            "## Apendice tecnico",
         ]
     )
+    for item in results:
+        details = item.get("details", {})
+        lines.append(
+            f"- `{item['operation_id']}` -> `{details.get('endpoint', 'n/a')}`"
+        )
     return "\n".join(lines) + "\n"
 
 

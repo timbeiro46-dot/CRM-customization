@@ -144,7 +144,12 @@ def test_cli_audit_reconcile_and_plan_with_reconciliation(tmp_path) -> None:
     )
     assert review_result.exit_code == 0, review_result.output
     assert "Plan humano guardado" in review_result.output
-    assert "Manifest hash" in change_plan_path.read_text(encoding="utf-8")
+    change_plan_text = change_plan_path.read_text(encoding="utf-8")
+    assert "Revision humana antes de cambiar HubSpot" in change_plan_text
+    assert "Decision requerida" in change_plan_text
+    assert "Gates antes de escribir" in change_plan_text
+    assert "Apendice tecnico" in change_plan_text
+    assert "Manifest hash" in change_plan_text
 
     validate_result = runner.invoke(
         app,

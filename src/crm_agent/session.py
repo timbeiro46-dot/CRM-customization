@@ -43,6 +43,176 @@ ARTIFACT_PATHS = {
     "readback_report": Path("readback_report.md"),
 }
 
+GUIDED_ROUTE = [
+    ("Conectar", "preparar acceso local seguro"),
+    ("Leer", "entender permisos, objetos y plan disponible"),
+    ("Descubrir", "entender el negocio y lo que ya existe"),
+    ("Disenar", "proponer una ruta CRM sin escribir nada"),
+    ("Revisar", "traducir cambios a lenguaje humano"),
+    ("Simular", "hacer dry-run obligatorio"),
+    ("Aplicar", "escribir solo con aprobacion explicita"),
+    ("Verificar", "leer HubSpot de vuelta y cerrar con evidencia"),
+]
+
+PHASE_EXPERIENCE = {
+    "legacy_app_setup": {
+        "route": "Conectar",
+        "title": "Fase 1 - Conexion segura",
+        "plain": (
+            "Primero preparo una conexion local. Sin token no puedo leer tu portal y "
+            "tampoco debo inventar capacidades."
+        ),
+        "agent": "Te guia para crear la legacy private app y guardar el token en `.env`.",
+        "human": "Conseguir el token con un super admin de HubSpot.",
+        "safety": "Todavia no hay llamadas al portal ni escrituras.",
+    },
+    "preflight": {
+        "route": "Leer",
+        "title": "Fase 2 - Lectura del portal",
+        "plain": (
+            "Ya hay conexion local. Ahora confirmo permisos, objetos CRM/Sales y limites "
+            "del portal antes de pedirte decisiones de diseno."
+        ),
+        "agent": "Ejecuta una lectura corta de capacidades.",
+        "human": "Revisar si el token corresponde al portal correcto.",
+        "safety": "Preflight usa endpoints read-only.",
+    },
+    "audit": {
+        "route": "Leer",
+        "title": "Fase 2 - Audit del CRM existente",
+        "plain": (
+            "Necesito ver que configuracion ya existe para no duplicar propiedades, "
+            "pipelines o decisiones que el equipo ya usa."
+        ),
+        "agent": "Audita metadata y calidad agregada del portal.",
+        "human": "No necesita decidir todavia; solo confirmar que se puede leer el portal.",
+        "safety": "Audit es read-only y no exporta valores completos de registros.",
+    },
+    "discovery": {
+        "route": "Descubrir",
+        "title": "Fase 3 - Discovery guiado",
+        "plain": (
+            "Aqui convierto el proceso comercial en una ruta CRM. Pregunto de a una "
+            "decision estrategica para evitar un formulario tecnico."
+        ),
+        "agent": "Hace preguntas de negocio y adapta el alcance al audit disponible.",
+        "human": "Responder la siguiente pregunta con lenguaje normal.",
+        "safety": "Discovery solo escribe archivos locales de contexto y diagnostico.",
+    },
+    "spec_review": {
+        "route": "Descubrir",
+        "title": "Fase 3 - Revision del diagnostico",
+        "plain": (
+            "Ya existe una propuesta humana. Antes de generar diseno tecnico, el "
+            "diagnostico debe ser revisado y aprobado por hash vigente."
+        ),
+        "agent": "Resume `crm_setup_spec.md` y marca preguntas o blockers.",
+        "human": "Aprobar el diagnostico solo si representa el negocio.",
+        "safety": "Sin aprobacion del spec no se genera diseno downstream.",
+    },
+    "design": {
+        "route": "Disenar",
+        "title": "Fase 4 - Diseno CRM",
+        "plain": (
+            "Transformo el diagnostico aprobado en una propuesta CRM revisable, todavia "
+            "sin tocar HubSpot."
+        ),
+        "agent": "Genera propiedades, pipeline y supuestos desde el contexto aprobado.",
+        "human": "Revisar si el diseno refleja el proceso real.",
+        "safety": "El comando falla si el diagnostico aprobado esta desactualizado.",
+    },
+    "reconcile": {
+        "route": "Disenar",
+        "title": "Fase 4 - Reconciliacion con lo existente",
+        "plain": (
+            "Comparo la propuesta contra el portal actual para reutilizar lo compatible "
+            "y bloquear coincidencias dudosas."
+        ),
+        "agent": "Decide reutilizar, crear, extender o pedir decision humana.",
+        "human": "Resolver conflictos cuando el portal tenga algo parecido.",
+        "safety": "No sobrescribe configuracion existente automaticamente.",
+    },
+    "plan": {
+        "route": "Revisar",
+        "title": "Fase 5 - Plan de cambios",
+        "plain": (
+            "Convierto el diseno reconciliado en un plan exacto de cambios, con riesgo "
+            "y rollback, pero aun sin escribir."
+        ),
+        "agent": "Genera un manifest idempotente desde hechos actuales.",
+        "human": "Esperar la version humana del plan antes de aprobar.",
+        "safety": "El manifest sigue bloqueado hasta validacion y aprobacion.",
+    },
+    "plan_review": {
+        "route": "Revisar",
+        "title": "Fase 5 - Revision humana",
+        "plain": (
+            "El plan tecnico debe traducirse a una pagina clara: que cambiaria, que se "
+            "reutiliza, riesgos, rollback y blockers."
+        ),
+        "agent": "Produce `crm_change_plan.md` para revisar sin leer YAML.",
+        "human": "Leer el plan humano y pedir ajustes si algo no cuadra.",
+        "safety": "No se puede aprobar el manifest si el plan humano esta stale.",
+    },
+    "blocked": {
+        "route": "Revisar",
+        "title": "Fase bloqueada - Decision humana",
+        "plain": "Hay conflictos o ambiguedades que no debo resolver solo.",
+        "agent": "Muestra el conflicto concreto y espera una decision.",
+        "human": "Elegir conservar, crear nuevo, extender o ajustar el alcance.",
+        "safety": "Mientras haya blockers, no hay validacion ni apply.",
+    },
+    "validate": {
+        "route": "Revisar",
+        "title": "Fase 5 - Aprobacion por hash",
+        "plain": (
+            "Valido reglas de seguridad y, si todo pasa, registro aprobacion del hash "
+            "exacto que se va a simular."
+        ),
+        "agent": "Comprueba manifest contra capacidades y plan humano vigente.",
+        "human": "Aprobar solo el hash actual despues de revisar el plan.",
+        "safety": "La aprobacion caduca si cambia el manifest.",
+    },
+    "dry_run": {
+        "route": "Simular",
+        "title": "Fase 6 - Dry-run obligatorio",
+        "plain": (
+            "Antes de escribir, simulo cada operacion y dejo un reporte revisable de "
+            "lo que pasaria."
+        ),
+        "agent": "Genera `dry_run_report.md` con operaciones simuladas.",
+        "human": "Revisar el dry-run antes de autorizar escritura real.",
+        "safety": "El dry-run no escribe en HubSpot.",
+    },
+    "ready_to_apply": {
+        "route": "Aplicar",
+        "title": "Fase 7 - Escritura aprobada",
+        "plain": (
+            "Todo esta listo tecnicamente, pero escribir en HubSpot requiere una "
+            "aprobacion humana explicita para `--execute`."
+        ),
+        "agent": "Puede ejecutar solo si el usuario aprueba ese paso exacto.",
+        "human": "Decir explicitamente que aprueba ejecutar el apply real.",
+        "safety": "Sin esa aprobacion, el agente se detiene.",
+    },
+    "verify": {
+        "route": "Verificar",
+        "title": "Fase 8 - Readback",
+        "plain": "Despues de escribir, leo HubSpot de vuelta y comparo contra el plan.",
+        "agent": "Genera evidencia final en `readback_report.md`.",
+        "human": "Revisar la evidencia final.",
+        "safety": "La entrega no se considera cerrada sin readback vigente.",
+    },
+    "verified": {
+        "route": "Verificar",
+        "title": "Fase 8 - Cierre con evidencia",
+        "plain": "La evidencia final coincide con el manifest actual.",
+        "agent": "Resume resultados desde el readback.",
+        "human": "Conservar los artefactos y decidir siguientes mejoras.",
+        "safety": "Cualquier cambio nuevo vuelve a pasar por gates.",
+    },
+}
+
 
 def build_session_state(root: Path = Path(".")) -> SessionState:
     token_configured = _token_configured(root)
@@ -138,12 +308,22 @@ def append_approval_event(
 
 
 def format_session_summary(state: SessionState, *, technical: bool = False) -> str:
+    experience = PHASE_EXPERIENCE[state.phase]
     lines = [
-        "Estado del agente HubSpot",
+        "Agente CRM guiado",
         "",
-        f"Fase actual: {state.next_action.title}",
+        _route_line(state.phase),
         "",
-        "Lo que ya puedo ver:",
+        experience["title"],
+        experience["plain"],
+        "",
+        "Rol del agente:",
+        f"- {experience['agent']}",
+        "",
+        "Rol humano:",
+        f"- {experience['human']}",
+        "",
+        "Estado visible:",
     ]
     ready_items = _ready_items(state)
     lines.extend(f"- {item}" for item in ready_items)
@@ -153,16 +333,20 @@ def format_session_summary(state: SessionState, *, technical: bool = False) -> s
         lines.extend(f"- {item}" for item in state.business_summary)
     if state.completed_gates:
         lines.append("")
-        lines.append("Controles ya cumplidos:")
+        lines.append("Gates completados:")
         lines.extend(f"- {item}" for item in state.completed_gates)
     if state.pending_gates:
         lines.append("")
-        lines.append("Controles pendientes:")
+        lines.append("Gates pendientes:")
         lines.extend(f"- {item}" for item in state.pending_gates)
-    if state.pending_questions and state.phase in {"discovery", "spec_review"}:
+    if state.pending_questions and state.phase in {"discovery", "spec_review", "blocked"}:
         lines.append("")
-        lines.append("Preguntas utiles para continuar:")
-        lines.extend(f"- {item}" for item in state.pending_questions[:5])
+        lines.append("Pregunta estrategica ahora:")
+        lines.append(f"- {state.pending_questions[0]}")
+        if len(state.pending_questions) > 1 and technical:
+            lines.append("")
+            lines.append("Preguntas siguientes:")
+            lines.extend(f"- {item}" for item in state.pending_questions[1:5])
     if state.blockers:
         lines.append("")
         lines.append("Bloqueos que requieren decision humana:")
@@ -179,8 +363,13 @@ def format_session_summary(state: SessionState, *, technical: bool = False) -> s
     lines.extend(
         [
             "",
-            "Regla de seguridad: no se escribira nada en HubSpot hasta tener manifest, "
-            "validacion y aprobacion por hash.",
+            "Gate de seguridad:",
+            f"- {experience['safety']}",
+            (
+                "- No se escribira nada en HubSpot hasta tener plan humano vigente, "
+                "manifest validado, aprobacion por hash, dry-run revisado y aprobacion "
+                "explicita para `--execute`."
+            ),
         ]
     )
     if technical:
@@ -191,6 +380,15 @@ def format_session_summary(state: SessionState, *, technical: bool = False) -> s
             digest = f" ({artifact.hash[:12]})" if artifact.hash else ""
             lines.append(f"- {name}: {status} - {artifact.path}{digest}")
     return "\n".join(lines)
+
+
+def _route_line(phase: str) -> str:
+    current_route = PHASE_EXPERIENCE[phase]["route"]
+    parts = []
+    for label, _description in GUIDED_ROUTE:
+        marker = "*" if label == current_route else "-"
+        parts.append(f"{marker} {label}")
+    return "Ruta: " + " > ".join(parts)
 
 
 def _determine_phase(
@@ -245,21 +443,26 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="setup_legacy_app",
             title="Configurar conexion segura",
             description=(
-                "Crear la legacy private app, copiar el token a .env y volver a correr start."
+                "Preparar el acceso local para que pueda leer el portal correcto sin "
+                "guardar secretos en documentos compartidos."
             ),
             command="crm-agent setup-legacy-app",
         ),
         "preflight": NextAction(
             id="run_preflight",
             title="Leer capacidades del portal",
-            description="Validar token, permisos, objetos y limites sin escribir en HubSpot.",
+            description=(
+                "Confirmar que puedo leer objetos, permisos y limites del portal antes de "
+                "pedir decisiones de negocio."
+            ),
             command="crm-agent preflight --out portal_capabilities.json",
         ),
         "audit": NextAction(
             id="run_audit",
             title="Auditar el CRM actual",
             description=(
-                "Inspeccionar configuracion existente y calidad agregada en modo read-only."
+                "Revisar configuracion existente y calidad agregada para conservar lo que "
+                "ya funciona."
             ),
             command=(
                 "crm-agent audit --capabilities portal_capabilities.json "
@@ -269,21 +472,28 @@ def _next_action_for_phase(phase: str) -> NextAction:
         "discovery": NextAction(
             id="run_discovery",
             title="Entender el negocio",
-            description="Responder un discovery guiado para descubrir la ruta CRM adecuada.",
+            description=(
+                "Responder la siguiente pregunta de negocio para construir una ruta CRM "
+                "adaptada al portal real."
+            ),
             command="crm-agent discover --audit crm_audit.yaml",
         ),
         "spec_review": NextAction(
             id="approve_spec",
             title="Revisar y aprobar el diagnostico",
             description=(
-                "Revisar crm_setup_spec.md. Si esta correcto, aprobarlo antes de generar diseno."
+                "Leer `crm_setup_spec.md` como documento humano. Si representa el negocio, "
+                "aprobarlo por hash antes del diseno."
             ),
             command="crm-agent approve-spec --spec crm_setup_spec.md",
         ),
         "design": NextAction(
             id="generate_design",
             title="Generar diseno CRM",
-            description="Convertir el contexto aprobado en un diseno CRM seguro y revisable.",
+            description=(
+                "Convertir el diagnostico aprobado en una propuesta CRM revisable, sin "
+                "escribir en HubSpot."
+            ),
             command=(
                 "crm-agent design --context business_context.yaml "
                 "--capabilities portal_capabilities.json --out crm_design.yaml"
@@ -292,7 +502,10 @@ def _next_action_for_phase(phase: str) -> NextAction:
         "reconcile": NextAction(
             id="run_reconcile",
             title="Reconciliar con HubSpot existente",
-            description="Comparar el diseno contra el audit para reutilizar o bloquear conflictos.",
+            description=(
+                "Comparar la propuesta contra el portal para reutilizar assets compatibles "
+                "y bloquear ambiguedades."
+            ),
             command=(
                 "crm-agent reconcile --design crm_design.yaml --audit crm_audit.yaml "
                 "--out crm_reconciliation.yaml"
@@ -301,7 +514,10 @@ def _next_action_for_phase(phase: str) -> NextAction:
         "plan": NextAction(
             id="generate_manifest",
             title="Generar plan de cambios",
-            description="Crear un manifest idempotente con riesgos y rollback, aun sin escribir.",
+            description=(
+                "Crear el plan exacto de operaciones, riesgos y rollback, todavia sin "
+                "escribir en HubSpot."
+            ),
             command=(
                 "crm-agent plan --design crm_design.yaml --capabilities portal_capabilities.json "
                 "--reconciliation crm_reconciliation.yaml --out hubspot_manifest.yaml"
@@ -311,8 +527,8 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="review_plan",
             title="Revisar plan humano",
             description=(
-                "Traducir el manifest tecnico a un plan humano con riesgos, bloqueos, "
-                "rollback y comandos supervisados."
+                "Traducir el plan tecnico a una revision humana clara: que cambiaria, "
+                "que se reutiliza, riesgos, blockers y rollback."
             ),
             command=(
                 "crm-agent review-plan --manifest hubspot_manifest.yaml "
@@ -322,13 +538,19 @@ def _next_action_for_phase(phase: str) -> NextAction:
         "blocked": NextAction(
             id="resolve_blockers",
             title="Resolver conflictos",
-            description="Resolver decisiones bloqueadas antes de validar o aplicar cambios.",
+            description=(
+                "Tomar la decision de negocio indicada en los blockers antes de validar "
+                "cualquier cambio."
+            ),
             command=None,
         ),
         "validate": NextAction(
             id="validate_manifest",
             title="Validar y aprobar manifest",
-            description="Validar reglas de seguridad y aprobar el hash exacto del manifest.",
+            description=(
+                "Validar reglas de seguridad y aprobar solo el hash exacto que ya tiene "
+                "plan humano vigente."
+            ),
             command=(
                 "crm-agent validate --manifest hubspot_manifest.yaml "
                 "--capabilities portal_capabilities.json --approve"
@@ -338,7 +560,8 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="dry_run_apply",
             title="Ejecutar dry-run supervisado",
             description=(
-                "Simular el apply con el manifest aprobado y guardar evidencia revisable."
+                "Simular el apply aprobado y guardar evidencia revisable antes de pedir "
+                "cualquier escritura real."
             ),
             command=(
                 "crm-agent apply --manifest hubspot_manifest.yaml "
@@ -349,8 +572,8 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="execute_apply",
             title="Aplicar solo con aprobacion explicita",
             description=(
-                "El dry-run vigente existe. Para escribir se requiere aprobacion explicita "
-                "del usuario y usar --execute."
+                "El dry-run vigente existe. La escritura real solo procede si el usuario "
+                "aprueba explicitamente ejecutar `--execute`."
             ),
             command=(
                 "crm-agent apply --manifest hubspot_manifest.yaml "
@@ -362,13 +585,16 @@ def _next_action_for_phase(phase: str) -> NextAction:
         "verify": NextAction(
             id="verify_readback",
             title="Verificar resultado",
-            description="Leer HubSpot y producir reporte final de evidencia.",
+            description="Leer HubSpot de vuelta y producir evidencia final contra el plan.",
             command="crm-agent verify --manifest hubspot_manifest.yaml --out readback_report.md",
         ),
         "verified": NextAction(
             id="review_readback",
             title="Revisar evidencia final",
-            description="El readback existe; revisar readback_report.md y conservar artefactos.",
+            description=(
+                "El readback vigente existe; revisar `readback_report.md` como evidencia "
+                "final del cambio."
+            ),
             command=None,
         ),
     }

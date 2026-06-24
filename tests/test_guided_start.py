@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from crm_agent.cli import app
 from crm_agent.io import stable_hash, write_json, write_yaml
 from crm_agent.models import (
+    AuditObjectMetadata,
     BusinessContext,
     CrmAudit,
     CrmDesign,
@@ -21,7 +22,7 @@ from crm_agent.models import (
     PortalObjectCapabilities,
     SpecApproval,
 )
-from crm_agent.session import build_session_state
+from crm_agent.session import build_session_state, format_session_summary
 
 
 def fake_capabilities() -> PortalCapabilities:
@@ -44,6 +45,22 @@ def fake_audit(capabilities: PortalCapabilities) -> CrmAudit:
         live_enrichment=False,
         hubs={},
         objects={},
+    )
+
+
+def fake_audit_with_existing_configuration(capabilities: PortalCapabilities) -> CrmAudit:
+    return CrmAudit(
+        generated_at="2026-06-23T00:00:00+00:00",
+        api_version="2026-03",
+        capability_hash=stable_hash(capabilities),
+        live_enrichment=True,
+        hubs={},
+        objects={
+            "companies": AuditObjectMetadata(
+                object_type="companies",
+                property_count=42,
+            )
+        },
     )
 
 
@@ -106,13 +123,74 @@ def test_discover_cli_writes_context_spec_and_user_friendly_output(tmp_path, mon
     assert (tmp_path / ".crm-agent" / "discovery_ledger.md").exists()
     spec = (tmp_path / "crm_setup_spec.md").read_text(encoding="utf-8")
     assert "## Preguntas abiertas" in spec
-    assert "## Gates antes de escribir" in spec
+    assert "## Gates seguros antes de escribir" in spec
     assert "Usuarios/roles: Sales team" in spec
     assert "Etapas propuestas: Inbound, Qualified, Proposal" in spec
     assert "Quienes usaran el CRM" not in spec
     assert "Que etapas reales" not in spec
     assert "planner.py" not in result.output
     assert "Siguiente paso seguro" in result.output
+
+
+def test_status_summary_shows_phase_route_and_one_strategic_question(tmp_path) -> None:
+    (tmp_path / ".env").write_text("HUBSPOT_PRIVATE_APP_TOKEN=pat-na1-test\n", encoding="utf-8")
+    capabilities = fake_capabilities()
+    write_json(tmp_path / "portal_capabilities.json", capabilities)
+    write_yaml(tmp_path / "crm_audit.yaml", fake_audit(capabilities))
+
+    state = build_session_state(tmp_path)
+    summary = format_session_summary(state)
+
+    assert state.phase == "discovery"
+    assert "Agente CRM guiado" in summary
+    assert "Ruta:" in summary
+    assert "* Descubrir" in summary
+    assert "Pregunta estrategica ahora" in summary
+    assert "Cual es el resultado de negocio" in summary
+    assert "Como entra, avanza y se cierra" not in summary
+    assert "planner.py" not in summary
+    assert "No se escribira nada en HubSpot" in summary
+
+
+def test_setup_spec_adapts_to_existing_portal_without_technical_leak(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    capabilities = fake_capabilities()
+    write_json(tmp_path / "portal_capabilities.json", capabilities)
+    write_yaml(tmp_path / "crm_audit.yaml", fake_audit_with_existing_configuration(capabilities))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "discover",
+            "--no-interactive",
+            "--business-name",
+            "Acme",
+            "--project-slug",
+            "acme",
+            "--sales-process-notes",
+            "Inbound lead, qualification, proposal, negotiation and close.",
+            "--user-role",
+            "Sales team",
+            "--pipeline-stage",
+            "Inbound",
+            "--critical-data",
+            "companies:segment:Segment:text",
+            "--reporting-goal",
+            "Pipeline health by owner",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    spec = (tmp_path / "crm_setup_spec.md").read_text(encoding="utf-8")
+    assert "# Ruta recomendada para adaptar HubSpot CRM" in spec
+    assert "El portal ya tiene configuracion visible" in spec
+    assert "Siguiente pregunta estrategica" in spec
+    assert "crm_change_plan.md" in spec
+    assert "Artefactos tecnicos de soporte" in spec
+    assert "No necesitas editar estos archivos" in spec
 
 
 def test_start_cli_reports_safe_next_step_without_technical_map(tmp_path, monkeypatch) -> None:
@@ -122,7 +200,7 @@ def test_start_cli_reports_safe_next_step_without_technical_map(tmp_path, monkey
     result = runner.invoke(app, ["start"])
 
     assert result.exit_code == 0, result.output
-    assert "Configurar conexion segura" in result.output
+    assert "Fase 1 - Conexion segura" in result.output
     assert "planner.py" not in result.output
     assert (tmp_path / ".crm-agent" / "session_state.yaml").exists()
 
@@ -447,8 +525,16 @@ def test_claude_assets_exist_and_enforce_consultant_mode() -> None:
     start_skill = (root / ".claude/skills/crm-start/SKILL.md").read_text(encoding="utf-8")
     discovery_skill = (root / ".claude/skills/crm-discovery/SKILL.md").read_text(encoding="utf-8")
     status_skill = (root / ".claude/skills/crm-status/SKILL.md").read_text(encoding="utf-8")
+    guided_doc = (root / "docs/guided_experience.md").read_text(encoding="utf-8")
 
     assert "CRM consultant" in claude
+    assert "Connect" in claude
+    assert "Verify" in claude
     assert "Do not run `crm-agent apply --execute`" in start_skill
+    assert "one strategic question" in start_skill
     assert "adaptive interview" in discovery_skill
+    assert "Ask one high-value question at a time" in discovery_skill
     assert "Resume from artifacts" in status_skill
+    assert "strategic question" in status_skill
+    assert "Ask one question at a time" in guided_doc
+    assert "Human-Facing Documents" in guided_doc
