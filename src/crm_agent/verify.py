@@ -6,12 +6,21 @@ from crm_agent.models import HubSpotManifest, ManifestOperation
 
 def verify_manifest(manifest: HubSpotManifest, connector: HubSpotConnector) -> str:
     lines = [
-        "# HubSpot Readback Report",
+        "# Evidencia final de HubSpot",
         "",
+        "## En palabras simples",
+        (
+            "Este reporte lee HubSpot de vuelta y compara lo encontrado contra el plan "
+            "aprobado. Es la evidencia de cierre del agente."
+        ),
+        "",
+        "## Identidad del plan",
         f"- Manifest hash: `{manifest.manifest_hash}`",
-        f"- Project slug: `{manifest.project_slug}`",
+        f"- Grupo de cambios nuevos: `{manifest.project_slug}`",
         "",
-        "| Operation | Action | Status | Evidence |",
+        "## Resultado por operacion",
+        "",
+        "| Operacion | Accion | Estado | Evidencia |",
         "| --- | --- | --- | --- |",
     ]
     for operation in manifest.operations:

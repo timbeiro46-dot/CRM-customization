@@ -1,9 +1,12 @@
 # HubSpot CRM Agent
 
-Supervised toolkit for parameterizing HubSpot CRM/Sales portals through a safe,
-phase-based workflow. The MVP uses a legacy private app token, but the code keeps
-HubSpot access behind a connector boundary so OAuth or MCP-backed discovery can be
-added later.
+Guided agent for adapting HubSpot CRM/Sales portals through a safe, phase-based
+workflow. It is designed for a non-technical Spanish-speaking user: the agent
+leads the route, asks one strategic question at a time, adapts to the existing
+portal and available plan, and keeps all HubSpot writes behind human gates.
+
+The MVP uses a legacy private app token, but the code keeps HubSpot access behind
+a connector boundary so OAuth or MCP-backed discovery can be added later.
 
 ## What V1 Covers
 
@@ -19,8 +22,8 @@ added later.
 
 ## Quickstart
 
-Start with the guided experience. It will inspect what is already configured and
-tell you the next safe step in Spanish:
+Start with the guided experience. It shows the current phase, what is already
+known, the next strategic question, and the next safe action in Spanish:
 
 ```bash
 crm-agent start
@@ -64,8 +67,21 @@ crm-agent discover --audit crm_audit.yaml
 crm-agent approve-spec --spec crm_setup_spec.md
 ```
 
+The human experience is:
+
+1. Connect: configure safe local access.
+2. Read: inspect portal capabilities and existing CRM configuration.
+3. Discover: answer business questions one at a time.
+4. Design: generate a CRM proposal from the approved diagnosis.
+5. Review: read a human plan before approving a manifest hash.
+6. Simulate: run dry-run and review `dry_run_report.md`.
+7. Apply: write only after explicit `--execute` approval.
+8. Verify: read HubSpot back and close with evidence.
+
 For the Claude Code/GitHub operating contract, see
 [docs/supervised_agent_runbook.md](docs/supervised_agent_runbook.md).
+For the zero-technical user flow, see
+[docs/guided_experience.md](docs/guided_experience.md).
 
 Advanced operator flow:
 
@@ -100,6 +116,10 @@ business context and a human-readable `crm_setup_spec.md`. Review and approve
 that spec before generating the technical CRM design.
 `start` and `status` also surface the current supervision gates, pending discovery
 questions, and stale artifacts from local files.
+The CLI keeps the human experience separate from technical artifacts: users
+review `crm_setup_spec.md`, `crm_change_plan.md`, `dry_run_report.md`, and
+`readback_report.md`; YAML and JSON files remain support evidence unless a
+technical operator asks for them.
 `design` refuses to run unless `crm_setup_spec.approval.json` matches the current
 `crm_setup_spec.md`.
 `review-plan` translates the technical manifest into `crm_change_plan.md`, a
