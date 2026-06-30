@@ -129,7 +129,7 @@ def test_discover_cli_writes_context_spec_and_user_friendly_output(tmp_path, mon
     assert "Quienes usaran el CRM" not in spec
     assert "Que etapas reales" not in spec
     assert "planner.py" not in result.output
-    assert "Siguiente paso seguro" in result.output
+    assert "Siguiente paso guiado" in result.output
 
 
 def test_status_summary_shows_phase_route_and_one_strategic_question(tmp_path) -> None:
@@ -142,6 +142,7 @@ def test_status_summary_shows_phase_route_and_one_strategic_question(tmp_path) -
     summary = format_session_summary(state)
 
     assert state.phase == "discovery"
+    assert summary.startswith("Hola, soy tu agente de configuracion CRM.")
     assert "Agente CRM guiado" in summary
     assert "Ruta:" in summary
     assert "* Descubrir" in summary
@@ -149,7 +150,7 @@ def test_status_summary_shows_phase_route_and_one_strategic_question(tmp_path) -
     assert "Tienes pagina web, Excel, CSV o documento" in summary
     assert "Como entra, avanza y se cierra" not in summary
     assert "planner.py" not in summary
-    assert "No se escribira nada en HubSpot" in summary
+    assert "No voy a cambiar nada en HubSpot" in summary
 
 
 def test_setup_spec_adapts_to_existing_portal_without_technical_leak(
@@ -250,9 +251,31 @@ def test_start_cli_reports_safe_next_step_without_technical_map(tmp_path, monkey
     result = runner.invoke(app, ["start"])
 
     assert result.exit_code == 0, result.output
+    assert result.output.startswith("Hola, soy tu agente de configuracion CRM.")
     assert "Fase 1 - Conexion segura" in result.output
     assert "planner.py" not in result.output
+    assert "token" not in result.output.lower()
+    assert ".env" not in result.output
+    assert "legacy private app" not in result.output.lower()
+    assert "hash" not in result.output.lower()
+    assert "manifest" not in result.output.lower()
+    assert "dry-run" not in result.output.lower()
+    assert "--execute" not in result.output
+    assert "Comando sugerido" not in result.output
     assert (tmp_path / ".crm-agent" / "session_state.yaml").exists()
+
+
+def test_start_cli_technical_mode_keeps_operator_details(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["start", "--technical"])
+
+    assert result.exit_code == 0, result.output
+    assert "Comando sugerido" in result.output
+    assert "crm-agent setup-legacy-app" in result.output
+    assert "Detalle tecnico de artefactos" in result.output
+    assert "portal_capabilities.json" in result.output
 
 
 def test_spec_approval_must_match_current_spec_hash(tmp_path, monkeypatch) -> None:
@@ -416,7 +439,7 @@ def test_manifest_approval_must_match_current_manifest_hash(tmp_path) -> None:
     )
     state = build_session_state(tmp_path)
     assert state.phase == "validate"
-    assert any("hubspot_manifest.yaml" in gate for gate in state.pending_gates)
+    assert any("Volver a aprobar el plan" in gate for gate in state.pending_gates)
 
 
 def test_session_routes_stale_reconciliation_back_to_reconcile(tmp_path) -> None:
@@ -468,9 +491,9 @@ def test_session_routes_stale_reconciliation_back_to_reconcile(tmp_path) -> None
     assert state.phase == "reconcile"
     assert state.next_action.command is not None
     assert "crm-agent reconcile" in state.next_action.command
-    assert any("Regenerar crm_reconciliation.yaml" in gate for gate in state.pending_gates)
+    assert any("Regenerar la comparacion" in gate for gate in state.pending_gates)
     assert not any(
-        "Reconciliacion contra lo existente vigente" in gate for gate in state.completed_gates
+        "Comparacion contra lo existente lista" in gate for gate in state.completed_gates
     )
 
 
@@ -559,14 +582,14 @@ def test_session_routes_apply_log_to_current_readback_gate(tmp_path) -> None:
 
     state = build_session_state(tmp_path)
     assert state.phase == "verify"
-    assert any("readback_report.md" in gate for gate in state.pending_gates)
+    assert any("Actualizar la verificacion final" in gate for gate in state.pending_gates)
 
     (tmp_path / "readback_report.md").write_text(
         f"Manifest hash: `{manifest.manifest_hash}`\n", encoding="utf-8"
     )
     state = build_session_state(tmp_path)
     assert state.phase == "verified"
-    assert any("Readback" in gate for gate in state.completed_gates)
+    assert any("Verificacion final" in gate for gate in state.completed_gates)
 
 
 def test_claude_assets_exist_and_enforce_consultant_mode() -> None:
@@ -581,11 +604,16 @@ def test_claude_assets_exist_and_enforce_consultant_mode() -> None:
     assert "Connect" in claude
     assert "Verify" in claude
     assert "Do not run `crm-agent apply --execute`" in start_skill
+    assert (
+        "Do not answer startup questions with `cd`, `source`, or `crm-agent start`"
+        in start_skill
+    )
     assert "one strategic question" in start_skill
     assert "adaptive interview" in discovery_skill
     assert "Ask one high-value question at a time" in discovery_skill
     assert "--source-file" in discovery_skill
     assert "Resume from artifacts" in status_skill
     assert "strategic question" in status_skill
+    assert "Do not answer \"como empiezo\" or \"ya instale el repo\"" in status_skill
     assert "Ask one question at a time" in guided_doc
     assert "Human-Facing Documents" in guided_doc

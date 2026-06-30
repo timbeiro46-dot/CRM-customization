@@ -117,12 +117,6 @@ def start(
     try:
         state = build_session_state()
         persist_session_state(state)
-        typer.echo(
-            "Soy tu agente de CRM. Voy a liderar la ruta por fases, hacer una "
-            "pregunta estrategica a la vez y mantener HubSpot bloqueado hasta que "
-            "apruebes un plan exacto."
-        )
-        typer.echo("")
         typer.echo(format_session_summary(state, technical=technical))
     except (CrmAgentError, ValidationError, OSError, ValueError) as error:
         _fail(error)

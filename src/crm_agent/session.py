@@ -49,7 +49,7 @@ GUIDED_ROUTE = [
     ("Descubrir", "entender el negocio y lo que ya existe"),
     ("Disenar", "proponer una ruta CRM sin escribir nada"),
     ("Revisar", "traducir cambios a lenguaje humano"),
-    ("Simular", "hacer dry-run obligatorio"),
+    ("Simular", "hacer una simulacion obligatoria"),
     ("Aplicar", "escribir solo con aprobacion explicita"),
     ("Verificar", "leer HubSpot de vuelta y cerrar con evidencia"),
 ]
@@ -59,23 +59,23 @@ PHASE_EXPERIENCE = {
         "route": "Conectar",
         "title": "Fase 1 - Conexion segura",
         "plain": (
-            "Primero preparo una conexion local. Sin token no puedo leer tu portal y "
-            "tampoco debo inventar capacidades."
+            "Primero verifico si ya tenemos acceso seguro a HubSpot. Sin ese acceso "
+            "no puedo revisar tu portal ni debo inventar lo que se puede hacer."
         ),
-        "agent": "Te guia para crear la legacy private app y guardar el token en `.env`.",
-        "human": "Conseguir el token con un super admin de HubSpot.",
+        "agent": "Te guia paso a paso para crear una conexion privada de HubSpot.",
+        "human": "Estar con un super admin de HubSpot para crear la clave de acceso.",
         "safety": "Todavia no hay llamadas al portal ni escrituras.",
     },
     "preflight": {
         "route": "Leer",
         "title": "Fase 2 - Lectura del portal",
         "plain": (
-            "Ya hay conexion local. Ahora confirmo permisos, objetos CRM/Sales y limites "
-            "del portal antes de pedirte decisiones de diseno."
+            "Ya hay acceso seguro. Ahora confirmo que puedo leer permisos, datos "
+            "principales y limites antes de pedirte decisiones de negocio."
         ),
-        "agent": "Ejecuta una lectura corta de capacidades.",
-        "human": "Revisar si el token corresponde al portal correcto.",
-        "safety": "Preflight usa endpoints read-only.",
+        "agent": "Hace una primera lectura segura del portal.",
+        "human": "Confirmar que este es el portal correcto.",
+        "safety": "La primera lectura no escribe en HubSpot.",
     },
     "audit": {
         "route": "Leer",
@@ -84,9 +84,9 @@ PHASE_EXPERIENCE = {
             "Necesito ver que configuracion ya existe para no duplicar propiedades, "
             "pipelines o decisiones que el equipo ya usa."
         ),
-        "agent": "Audita metadata y calidad agregada del portal.",
+        "agent": "Revisa la configuracion existente y senales agregadas de calidad.",
         "human": "No necesita decidir todavia; solo confirmar que se puede leer el portal.",
-        "safety": "Audit es read-only y no exporta valores completos de registros.",
+        "safety": "Esta revision solo lee informacion agregada y no cambia HubSpot.",
     },
     "discovery": {
         "route": "Descubrir",
@@ -97,18 +97,18 @@ PHASE_EXPERIENCE = {
         ),
         "agent": "Hace preguntas de negocio y adapta el alcance al audit disponible.",
         "human": "Responder la siguiente pregunta con lenguaje normal.",
-        "safety": "Discovery solo escribe archivos locales de contexto y diagnostico.",
+        "safety": "Discovery solo guarda contexto local y no cambia HubSpot.",
     },
     "spec_review": {
         "route": "Descubrir",
         "title": "Fase 3 - Revision del diagnostico",
         "plain": (
-            "Ya existe una propuesta humana. Antes de generar diseno tecnico, el "
-            "diagnostico debe ser revisado y aprobado por hash vigente."
+            "Ya existe un diagnostico humano. Antes de disenar cambios, confirmamos "
+            "que representa el negocio real."
         ),
-        "agent": "Resume `crm_setup_spec.md` y marca preguntas o blockers.",
+        "agent": "Resume el diagnostico y marca preguntas o bloqueos.",
         "human": "Aprobar el diagnostico solo si representa el negocio.",
-        "safety": "Sin aprobacion del spec no se genera diseno downstream.",
+        "safety": "Sin aprobar el diagnostico no se avanza a proponer cambios.",
     },
     "design": {
         "route": "Disenar",
@@ -136,23 +136,23 @@ PHASE_EXPERIENCE = {
         "route": "Revisar",
         "title": "Fase 5 - Plan de cambios",
         "plain": (
-            "Convierto el diseno reconciliado en un plan exacto de cambios, con riesgo "
-            "y rollback, pero aun sin escribir."
+            "Convierto la propuesta revisada en un plan exacto de cambios, con riesgos "
+            "y salida manual si algo no conviene, pero aun sin escribir."
         ),
-        "agent": "Genera un manifest idempotente desde hechos actuales.",
+        "agent": "Genera el plan de cambios desde hechos actuales.",
         "human": "Esperar la version humana del plan antes de aprobar.",
-        "safety": "El manifest sigue bloqueado hasta validacion y aprobacion.",
+        "safety": "El plan sigue bloqueado hasta revision y aprobacion humana.",
     },
     "plan_review": {
         "route": "Revisar",
         "title": "Fase 5 - Revision humana",
         "plain": (
-            "El plan tecnico debe traducirse a una pagina clara: que cambiaria, que se "
-            "reutiliza, riesgos, rollback y blockers."
+            "El plan debe verse como una pagina clara: que cambiaria, que se conserva, "
+            "riesgos, salida manual y bloqueos."
         ),
-        "agent": "Produce `crm_change_plan.md` para revisar sin leer YAML.",
+        "agent": "Produce una version humana para revisar sin lenguaje tecnico.",
         "human": "Leer el plan humano y pedir ajustes si algo no cuadra.",
-        "safety": "No se puede aprobar el manifest si el plan humano esta stale.",
+        "safety": "No se puede aprobar nada si el plan humano esta desactualizado.",
     },
     "blocked": {
         "route": "Revisar",
@@ -164,52 +164,52 @@ PHASE_EXPERIENCE = {
     },
     "validate": {
         "route": "Revisar",
-        "title": "Fase 5 - Aprobacion por hash",
+        "title": "Fase 5 - Aprobacion del plan",
         "plain": (
-            "Valido reglas de seguridad y, si todo pasa, registro aprobacion del hash "
-            "exacto que se va a simular."
+            "Valido reglas de seguridad y, si todo pasa, dejo aprobado exactamente el "
+            "plan que se va a simular."
         ),
-        "agent": "Comprueba manifest contra capacidades y plan humano vigente.",
-        "human": "Aprobar solo el hash actual despues de revisar el plan.",
-        "safety": "La aprobacion caduca si cambia el manifest.",
+        "agent": "Comprueba el plan contra la lectura actual y el plan humano vigente.",
+        "human": "Aprobar solo despues de revisar el plan.",
+        "safety": "La aprobacion caduca si el plan cambia.",
     },
     "dry_run": {
         "route": "Simular",
-        "title": "Fase 6 - Dry-run obligatorio",
+        "title": "Fase 6 - Simulacion obligatoria",
         "plain": (
-            "Antes de escribir, simulo cada operacion y dejo un reporte revisable de "
+            "Antes de escribir, simulo cada cambio y dejo un reporte revisable de "
             "lo que pasaria."
         ),
-        "agent": "Genera `dry_run_report.md` con operaciones simuladas.",
-        "human": "Revisar el dry-run antes de autorizar escritura real.",
-        "safety": "El dry-run no escribe en HubSpot.",
+        "agent": "Genera un reporte de simulacion.",
+        "human": "Revisar la simulacion antes de autorizar escritura real.",
+        "safety": "La simulacion no escribe en HubSpot.",
     },
     "ready_to_apply": {
         "route": "Aplicar",
         "title": "Fase 7 - Escritura aprobada",
         "plain": (
-            "Todo esta listo tecnicamente, pero escribir en HubSpot requiere una "
-            "aprobacion humana explicita para `--execute`."
+            "Todo esta listo, pero escribir en HubSpot requiere una aprobacion humana "
+            "explicita para aplicar."
         ),
         "agent": "Puede ejecutar solo si el usuario aprueba ese paso exacto.",
-        "human": "Decir explicitamente que aprueba ejecutar el apply real.",
+        "human": "Decir explicitamente que aprueba aplicar los cambios reales.",
         "safety": "Sin esa aprobacion, el agente se detiene.",
     },
     "verify": {
         "route": "Verificar",
-        "title": "Fase 8 - Readback",
+        "title": "Fase 8 - Verificacion",
         "plain": "Despues de escribir, leo HubSpot de vuelta y comparo contra el plan.",
-        "agent": "Genera evidencia final en `readback_report.md`.",
+        "agent": "Genera evidencia final.",
         "human": "Revisar la evidencia final.",
-        "safety": "La entrega no se considera cerrada sin readback vigente.",
+        "safety": "La entrega no se considera cerrada sin verificacion vigente.",
     },
     "verified": {
         "route": "Verificar",
         "title": "Fase 8 - Cierre con evidencia",
-        "plain": "La evidencia final coincide con el manifest actual.",
-        "agent": "Resume resultados desde el readback.",
+        "plain": "La evidencia final coincide con el plan actual.",
+        "agent": "Resume resultados desde la verificacion.",
         "human": "Conservar los artefactos y decidir siguientes mejoras.",
-        "safety": "Cualquier cambio nuevo vuelve a pasar por gates.",
+        "safety": "Cualquier cambio nuevo vuelve a pasar por revision y simulacion.",
     },
 }
 
@@ -310,6 +310,13 @@ def append_approval_event(
 def format_session_summary(state: SessionState, *, technical: bool = False) -> str:
     experience = PHASE_EXPERIENCE[state.phase]
     lines = [
+        "Hola, soy tu agente de configuracion CRM.",
+        "",
+        "Primero necesitamos conectar HubSpot de forma segura para poder revisar tu portal.",
+        f"Estado actual: {_connection_status(state)}",
+        "Si no esta conectado, te guio paso a paso.",
+        "No voy a cambiar nada en HubSpot sin mostrarte un plan claro y pedirte aprobacion.",
+        "",
         "Agente CRM guiado",
         "",
         _route_line(state.phase),
@@ -333,11 +340,11 @@ def format_session_summary(state: SessionState, *, technical: bool = False) -> s
         lines.extend(f"- {item}" for item in state.business_summary)
     if state.completed_gates:
         lines.append("")
-        lines.append("Gates completados:")
+        lines.append("Listo:")
         lines.extend(f"- {item}" for item in state.completed_gates)
     if state.pending_gates:
         lines.append("")
-        lines.append("Gates pendientes:")
+        lines.append("Falta:")
         lines.extend(f"- {item}" for item in state.pending_gates)
     if state.pending_questions and state.phase in {"discovery", "spec_review", "blocked"}:
         lines.append("")
@@ -354,25 +361,40 @@ def format_session_summary(state: SessionState, *, technical: bool = False) -> s
     lines.extend(
         [
             "",
-            "Siguiente paso seguro:",
+            "Siguiente paso guiado:",
             f"- {state.next_action.description}",
         ]
     )
-    if state.next_action.command:
+    if state.phase == "legacy_app_setup" and not state.token_configured:
+        lines.extend(
+            [
+                "",
+                "Para crear el acceso seguro:",
+                "- Necesitas estar con un super admin de HubSpot.",
+                "- Vamos a crear una conexion privada.",
+                "- HubSpot te dara una clave.",
+                "- Esa clave se guarda localmente; no me la pegues en el chat.",
+                "- Cuando este guardada, yo verifico si puedo leer el portal.",
+            ]
+        )
+    if state.next_action.command and technical:
         lines.append(f"- Comando sugerido: `{state.next_action.command}`")
     lines.extend(
         [
             "",
-            "Gate de seguridad:",
+            "Seguridad:",
             f"- {experience['safety']}",
             (
-                "- No se escribira nada en HubSpot hasta tener plan humano vigente, "
-                "manifest validado, aprobacion por hash, dry-run revisado y aprobacion "
-                "explicita para `--execute`."
+                "- No voy a cambiar nada en HubSpot sin mostrarte el plan, simularlo "
+                "y pedirte aprobacion explicita."
             ),
         ]
     )
     if technical:
+        lines.append(
+            "- Regla tecnica: no ejecutar `crm-agent apply --execute` hasta tener "
+            "manifest validado, aprobacion por hash y dry-run vigente."
+        )
         lines.append("")
         lines.append("Detalle tecnico de artefactos:")
         for name, artifact in state.artifacts.items():
@@ -380,6 +402,15 @@ def format_session_summary(state: SessionState, *, technical: bool = False) -> s
             digest = f" ({artifact.hash[:12]})" if artifact.hash else ""
             lines.append(f"- {name}: {status} - {artifact.path}{digest}")
     return "\n".join(lines)
+
+
+def _connection_status(state: SessionState) -> str:
+    if state.token_configured:
+        return (
+            "ya tenemos acceso seguro a HubSpot. Primero voy a revisar que permisos "
+            "y configuracion existen."
+        )
+    return "todavia no tenemos acceso seguro a HubSpot."
 
 
 def _route_line(phase: str) -> str:
@@ -482,8 +513,8 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="approve_spec",
             title="Revisar y aprobar el diagnostico",
             description=(
-                "Leer `crm_setup_spec.md` como documento humano. Si representa el negocio, "
-                "aprobarlo por hash antes del diseno."
+                "Revisar el diagnostico humano. Si representa el negocio, aprobarlo "
+                "antes del diseno."
             ),
             command="crm-agent approve-spec --spec crm_setup_spec.md",
         ),
@@ -515,7 +546,7 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="generate_manifest",
             title="Generar plan de cambios",
             description=(
-                "Crear el plan exacto de operaciones, riesgos y rollback, todavia sin "
+                "Crear el plan exacto de cambios, riesgos y salida manual, todavia sin "
                 "escribir en HubSpot."
             ),
             command=(
@@ -527,8 +558,8 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="review_plan",
             title="Revisar plan humano",
             description=(
-                "Traducir el plan tecnico a una revision humana clara: que cambiaria, "
-                "que se reutiliza, riesgos, blockers y rollback."
+                "Traducir el plan a una revision humana clara: que cambiaria, "
+                "que se reutiliza, riesgos, bloqueos y salida manual."
             ),
             command=(
                 "crm-agent review-plan --manifest hubspot_manifest.yaml "
@@ -546,10 +577,10 @@ def _next_action_for_phase(phase: str) -> NextAction:
         ),
         "validate": NextAction(
             id="validate_manifest",
-            title="Validar y aprobar manifest",
+            title="Validar y aprobar plan",
             description=(
-                "Validar reglas de seguridad y aprobar solo el hash exacto que ya tiene "
-                "plan humano vigente."
+                "Validar reglas de seguridad y aprobar solo el plan exacto que ya tiene "
+                "revision humana vigente."
             ),
             command=(
                 "crm-agent validate --manifest hubspot_manifest.yaml "
@@ -558,9 +589,9 @@ def _next_action_for_phase(phase: str) -> NextAction:
         ),
         "dry_run": NextAction(
             id="dry_run_apply",
-            title="Ejecutar dry-run supervisado",
+            title="Ejecutar simulacion supervisada",
             description=(
-                "Simular el apply aprobado y guardar evidencia revisable antes de pedir "
+                "Simular el plan aprobado y guardar evidencia revisable antes de pedir "
                 "cualquier escritura real."
             ),
             command=(
@@ -572,8 +603,8 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="execute_apply",
             title="Aplicar solo con aprobacion explicita",
             description=(
-                "El dry-run vigente existe. La escritura real solo procede si el usuario "
-                "aprueba explicitamente ejecutar `--execute`."
+                "La simulacion vigente existe. La escritura real solo procede si el "
+                "usuario aprueba explicitamente aplicar."
             ),
             command=(
                 "crm-agent apply --manifest hubspot_manifest.yaml "
@@ -592,8 +623,7 @@ def _next_action_for_phase(phase: str) -> NextAction:
             id="review_readback",
             title="Revisar evidencia final",
             description=(
-                "El readback vigente existe; revisar `readback_report.md` como evidencia "
-                "final del cambio."
+                "La verificacion vigente existe; revisar la evidencia final del cambio."
             ),
             command=None,
         ),
@@ -722,7 +752,7 @@ def _detect_blockers(
     blockers: list[str] = []
     if artifacts["setup_spec_approval"].exists and not spec_approved:
         blockers.append(
-            "La aprobacion de crm_setup_spec.md no coincide con el archivo actual; "
+            "La aprobacion anterior del diagnostico ya no coincide con la version actual; "
             "hay que revisar y aprobar de nuevo."
         )
     if artifacts["reconciliation"].exists and reconciliation_current:
@@ -734,7 +764,7 @@ def _detect_blockers(
                 if decision.decision in {"blocked_conflict", "needs_review"}:
                     blockers.append(f"{decision.id}: {decision.decision} - {decision.reason}")
         except (OSError, ValueError, ValidationError) as error:
-            blockers.append(f"No pude leer crm_reconciliation.yaml: {error}")
+            blockers.append(f"No pude leer la comparacion con lo existente: {error}")
     if artifacts["manifest"].exists:
         try:
             manifest = HubSpotManifest.model_validate(read_yaml(root / ARTIFACT_PATHS["manifest"]))
@@ -742,7 +772,7 @@ def _detect_blockers(
                 if operation.status == "blocked":
                     blockers.append(f"{operation.id}: {operation.reason}")
         except (OSError, ValueError, ValidationError) as error:
-            blockers.append(f"No pude leer hubspot_manifest.yaml: {error}")
+            blockers.append(f"No pude leer el plan tecnico de cambios: {error}")
     return blockers
 
 
@@ -755,7 +785,7 @@ def _business_summary(root: Path, artifacts: dict[str, ArtifactSnapshot]) -> lis
         )
     except (OSError, ValueError, ValidationError):
         return ["Hay un business_context.yaml, pero necesita revision porque no pude validarlo."]
-    summary = [f"Empresa: {context.business_name}", f"Namespace: {context.project_slug}"]
+    summary = [f"Empresa: {context.business_name}", f"Grupo de cambios: {context.project_slug}"]
     if context.industry:
         summary.append(f"Industria: {context.industry}")
     if context.sales_motion:
@@ -879,27 +909,27 @@ def _completed_gates(
 ) -> list[str]:
     gates: list[str] = []
     if token_configured:
-        gates.append("Conexion local configurada")
+        gates.append("Acceso seguro a HubSpot configurado")
     if artifacts["capabilities"].exists:
-        gates.append("Preflight de capacidades guardado")
+        gates.append("Primera lectura del portal guardada")
     if artifacts["audit"].exists:
-        gates.append("Audit profundo read-only guardado")
+        gates.append("Revision del CRM actual guardada")
     if artifacts["business_context"].exists:
-        gates.append("Discovery persistido en business_context.yaml")
+        gates.append("Contexto de negocio guardado")
     if artifacts["setup_spec"].exists and spec_approved:
-        gates.append("Diagnostico humano aprobado por hash vigente")
+        gates.append("Diagnostico humano aprobado")
     if artifacts["reconciliation"].exists and reconciliation_current:
-        gates.append("Reconciliacion contra lo existente vigente")
+        gates.append("Comparacion contra lo existente lista")
     if artifacts["change_plan"].exists and change_plan_current:
-        gates.append("Plan humano de cambios vigente")
+        gates.append("Plan humano de cambios listo")
     if artifacts["manifest"].exists and manifest_approved:
-        gates.append("Manifest validado y aprobado por hash vigente")
+        gates.append("Plan de cambios aprobado")
     if artifacts["dry_run_report"].exists and dry_run_current:
-        gates.append("Dry-run vigente documentado")
+        gates.append("Simulacion documentada")
     if artifacts["apply_log"].exists:
-        gates.append("Apply log de escritura presente")
+        gates.append("Cambios aplicados registrados")
     if artifacts["readback_report"].exists and readback_current:
-        gates.append("Readback de HubSpot documentado")
+        gates.append("Verificacion final documentada")
     return gates
 
 
@@ -914,37 +944,35 @@ def _pending_gates(
     readback_current: bool,
 ) -> list[str]:
     gates_by_phase = {
-        "legacy_app_setup": ["Crear legacy private app y guardar token local en .env"],
-        "preflight": ["Preflight read-only de permisos, objetos y limites"],
-        "audit": ["Audit profundo del portal y calidad agregada"],
-        "discovery": ["Discovery adaptativo de negocio antes de disenar"],
-        "spec_review": ["Revision humana de crm_setup_spec.md y aprobacion por hash"],
-        "design": ["Diseno CRM generado desde el spec aprobado"],
-        "reconcile": ["Reconciliacion del diseno con configuracion existente"],
-        "plan": ["Manifest idempotente con riesgos, rollback y blockers"],
-        "plan_review": ["Plan humano vigente para revisar cambios, riesgos y rollback"],
+        "legacy_app_setup": ["Crear acceso seguro local de HubSpot"],
+        "preflight": ["Primera lectura segura del portal"],
+        "audit": ["Revision del portal y calidad agregada"],
+        "discovery": ["Entender el negocio antes de disenar"],
+        "spec_review": ["Revision humana del diagnostico"],
+        "design": ["Diseno CRM generado desde el diagnostico aprobado"],
+        "reconcile": ["Comparacion del diseno con configuracion existente"],
+        "plan": ["Plan exacto de cambios con riesgos y salida manual"],
+        "plan_review": ["Plan humano vigente para revisar cambios, riesgos y salida manual"],
         "blocked": ["Resolver conflictos humanos antes de validar"],
-        "validate": ["Validacion de seguridad y aprobacion del manifest por hash"],
-        "dry_run": ["Dry-run persistente antes de cualquier --execute"],
-        "ready_to_apply": ["Aprobacion humana explicita para ejecutar --execute"],
-        "verify": ["Readback final contra HubSpot y reporte de evidencia"],
+        "validate": ["Validacion de seguridad y aprobacion del plan"],
+        "dry_run": ["Simulacion persistente antes de cualquier aplicacion real"],
+        "ready_to_apply": ["Aprobacion humana explicita para aplicar"],
+        "verify": ["Verificacion final contra HubSpot y reporte de evidencia"],
         "verified": ["Revisar y conservar evidencia final"],
     }
     gates = list(gates_by_phase.get(phase, []))
     if artifacts["setup_spec_approval"].exists and not spec_approved:
-        gates.append("Reaprobar crm_setup_spec.md porque el hash cambio")
+        gates.append("Volver a aprobar el diagnostico porque cambio")
     if artifacts["reconciliation"].exists and not reconciliation_current:
-        gates.append(
-            "Regenerar crm_reconciliation.yaml porque design, audit o capabilities cambiaron"
-        )
+        gates.append("Regenerar la comparacion porque la propuesta o la lectura cambiaron")
     if artifacts["manifest_approval"].exists and not manifest_approved:
-        gates.append("Revalidar hubspot_manifest.yaml porque el hash cambio")
+        gates.append("Volver a aprobar el plan porque cambio")
     if artifacts["change_plan"].exists and not change_plan_current:
-        gates.append("Regenerar crm_change_plan.md porque el manifest cambio")
+        gates.append("Actualizar el plan humano porque el plan tecnico cambio")
     if artifacts["dry_run_report"].exists and not dry_run_current:
-        gates.append("Regenerar dry_run_report.md porque el manifest cambio")
+        gates.append("Repetir la simulacion porque el plan cambio")
     if artifacts["readback_report"].exists and not readback_current:
-        gates.append("Regenerar readback_report.md porque el manifest cambio")
+        gates.append("Actualizar la verificacion final porque el plan cambio")
     return _dedupe(gates)
 
 
@@ -962,21 +990,21 @@ def _dedupe(items: list[str]) -> list[str]:
 def _ready_items(state: SessionState) -> list[str]:
     items = []
     if state.token_configured:
-        items.append("Token local configurado en .env")
+        items.append("Acceso seguro a HubSpot: listo")
     else:
-        items.append("Falta configurar el token local de HubSpot")
+        items.append("Acceso seguro a HubSpot: pendiente")
     for name, label in [
-        ("capabilities", "Preflight del portal"),
-        ("audit", "Audit read-only"),
-        ("business_context", "Discovery de negocio"),
+        ("capabilities", "Primera lectura del portal"),
+        ("audit", "Revision del CRM actual"),
+        ("business_context", "Contexto de negocio"),
         ("setup_spec", "Diagnostico humano"),
-        ("design", "Diseno CRM"),
-        ("reconciliation", "Reconciliacion"),
-        ("manifest", "Manifest de cambios"),
+        ("design", "Propuesta CRM"),
+        ("reconciliation", "Comparacion con lo existente"),
+        ("manifest", "Plan de cambios"),
         ("change_plan", "Plan humano de cambios"),
-        ("manifest_approval", "Aprobacion por hash"),
-        ("dry_run_report", "Reporte de dry-run"),
-        ("apply_log", "Log de apply"),
+        ("manifest_approval", "Aprobacion del plan"),
+        ("dry_run_report", "Reporte de simulacion"),
+        ("apply_log", "Registro de cambios aplicados"),
         ("readback_report", "Reporte de verificacion"),
     ]:
         if state.artifacts[name].exists:

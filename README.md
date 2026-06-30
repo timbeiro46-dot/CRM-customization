@@ -22,15 +22,33 @@ a connector boundary so OAuth or MCP-backed discovery can be added later.
 
 ## Quickstart
 
-Start with the guided experience. It shows the current phase, what is already
-known, the next strategic question, and the next safe action in Spanish:
+Start with the guided experience. The first answer is always conversational and
+non-technical. It explains what we need first, whether it is already ready, what
+is missing, and the next guided step in Spanish:
 
 ```bash
 crm-agent start
 ```
 
-If this is a new machine or portal, the first step will be the HubSpot legacy
-private app setup. This is not optional in the MVP.
+The normal first screen should feel like this:
+
+```text
+Hola, soy tu agente de configuracion CRM.
+
+Primero necesitamos conectar HubSpot de forma segura para poder revisar tu portal.
+Estado actual: todavia no tenemos acceso seguro a HubSpot.
+Si no esta conectado, te guio paso a paso.
+No voy a cambiar nada en HubSpot sin mostrarte un plan claro y pedirte aprobacion.
+```
+
+If this is a new machine or portal, the first human step is creating secure
+HubSpot access with a super admin. The agent explains that in plain language
+first. It does not show terminal commands, file names, tokens, manifests, hashes,
+or apply commands unless the user asks for technical/operator detail.
+
+## Operator Setup
+
+For an operator installing or wiring the repo, the technical setup is:
 
 ```bash
 crm-agent setup-legacy-app
